@@ -12,7 +12,7 @@
 
 ---
 
-This is where the origaiTV USB stick comes from.
+This is where the origaiTV USB stick comes from. origaiTV used to be called AgenTV, so the older releases here still have that name.
 
 Put the ISO on a stick and start your box from it. The TV shows a code. Scan it with your phone, pick the disk and tap "Erase and install". That's the only question. The box installs origaiTV, restarts by itself, and your phone carries on with setup.
 
