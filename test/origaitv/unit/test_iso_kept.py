@@ -325,7 +325,7 @@ class IsoKept(unittest.TestCase):
         self.a_tags_run()
         self.passes("stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
         for call in self.log.read_text().splitlines():
-            self.assertRegex(call, r"^api repos/someone/origaitv-iso/(actions/runs/7(/artifacts\?per_page=100)?|compare/a{40}\.\.\.origaitv)$")
+            self.assertRegex(call, r"^api repos/someone/origaitv-iso/(actions/runs/7(/artifacts\?per_page=100)?|compare/a{40}\.\.\.agentv)$")
 
 
 def jobs():
