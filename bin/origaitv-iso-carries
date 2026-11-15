@@ -1,0 +1,74 @@
+#!/bin/bash
+
+# origaitv:summary=Check a release tag's ISO carries the packages that tag stands for
+# origaitv:args=<tag> [<packages-dir>]
+
+# An ISO built for a release tag is named after the tag's version, and
+# that's the name people download. So before the long build, this checks
+# that the origaitv package bin/origaitv-iso-packages fetched is the one the
+# name promises:
+#
+#   a release, origaitv-v1.0.0
+#       The package is 1.0.0, from the stable channel. Tagged before
+#       origaitv-pkgs has published the release, the ISO would be called
+#       1.0.0 and install the release before it.
+#   a candidate, origaitv-v1.0.0-rc1
+#       The package is edge's, which says the origaitv-os commit it was built
+#       from, like 0.2.0.r540.g38b376c64. origaitv-os has to have the same
+#       tag, on that commit. So a candidate is always a commit somebody
+#       tagged in both repos, and not whatever edge had moved on to by the
+#       time the ISO was built.
+#
+# It reads the package's version from its file name, and origaitv-os's tag
+# with git. No keys. The owner comes from ORIGAITV_OWNER, as for
+# bin/origaitv-iso-packages. ORIGAITV_OS_URL points at another origaitv-os, for
+# the tests.
+
+set -euo pipefail
+
+ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+tag="${1:?usage: origaitv-iso-carries <tag> [<packages-dir>]}"
+dir="${2:-$ROOT/configs/airootfs/usr/share/origaitv-iso/packages}"
+
+stop() {
+  echo "::error::$*" >&2
+  exit 1
+}
+
+read -r channel version < <("$ROOT/bin/origaitv-iso-tag" "$tag") || exit 1
+
+found=()
+for file in "$dir"/origaitv-[0-9]*-any.pkg.tar.zst; do
+  [[ -f $file ]] || continue
+  name=${file##*/}
+  if [[ $name =~ ^origaitv-(.+)-[0-9]+-any\.pkg\.tar\.zst$ ]]; then
+    found+=("${BASH_REMATCH[1]}")
+  fi
+done
+(( ${#found[@]} == 1 )) || stop "Expected one origaitv package in $dir, found ${#found[@]}. Run bin/origaitv-iso-packages first."
+package=${found[0]}
+
+if [[ $channel == "stable" ]]; then
+  [[ $package == "$version" ]] ||
+    stop "$tag is origaiTV $version, and the stable channel's package is origaitv $package. So this ISO would be called $version and install $package. Wait until origaitv-pkgs has published $version on stable, then run this again."
+  echo "The ISO for $tag carries origaitv $package, the release itself."
+  exit 0
+fi
+
+# A candidate: edge's package, and the commit it names.
+[[ $package =~ ^[0-9]+\.[0-9]+\.[0-9]+\.r[0-9]+\.g([0-9a-f]{7,40})$ ]] ||
+  stop "$tag is a candidate, which carries edge's package, and origaitv $package doesn't say which origaitv-os commit it's from."
+short=${BASH_REMATCH[1]}
+
+: "${ORIGAITV_OWNER:?set ORIGAITV_OWNER to the GitHub owner of origaitv-os}"
+os=${ORIGAITV_OS_URL:-https://github.com/$ORIGAITV_OWNER/origaitv-os.git}
+listed=$(git ls-remote "$os" "refs/tags/$tag" "refs/tags/$tag^{}") || stop "Couldn't list origaitv-os's tags."
+# A tag with a message of its own is listed twice, and the line that ends
+# in ^{} has the commit.
+commit=$(awk -v tag="refs/tags/$tag" '$2 == tag "^{}" { peeled = $1 } $2 == tag { plain = $1 } END { print (peeled != "" ? peeled : plain) }' <<<"$listed")
+[[ $commit =~ ^[0-9a-f]{40}$ ]] ||
+  stop "origaitv-os has no $tag tag. A candidate is tagged in origaitv-os first, on the commit edge's package was built from (origaitv $package is from $short), and then here."
+[[ ${commit:0:${#short}} == "$short" ]] ||
+  stop "origaitv-os's $tag is on ${commit:0:${#short}}, and edge's package, origaitv $package, was built from $short. So this ISO wouldn't be what was tagged. Edge has moved on, or the tag is on another commit: tag the commit edge is on, in both repos, as the next candidate."
+
+echo "The ISO for $tag carries origaitv $package, built from the commit origaitv-os tagged $tag (${commit:0:${#short}})."

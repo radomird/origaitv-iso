@@ -1,0 +1,42 @@
+#!/bin/bash
+#
+# Shared by the image checks that sync from the real package repositories,
+# Omarchy's and origaiTV's edge release. Source it after upstream's
+# base-test.sh.
+#
+# Edge is published again each time origaitv-os or origaitv-pkgs merges, and
+# GitHub replaces a release asset by deleting it and uploading the new one.
+# For a minute or two after, origaitv.db's download can answer 404, and pacman
+# then fails the whole sync. A box tries again with its next daily check; a
+# check waits it out here instead of failing on its first try.
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  echo "source test/origaitv/image/repos.sh from a check; don't run it" >&2
+  exit 1
+fi
+
+# A failed wait for SSH says why (ssh.sh).
+source "$(dirname -- "${BASH_SOURCE[0]}")/ssh.sh"
+
+# sync_repos [<tries>]: pacman -Sy on the box until every repository
+# answers, a minute apart. Each try's output goes to $RUN_DIR/sync.log.
+sync_repos() {
+  local tries=${1:-6} try
+  for (( try = 1; try <= tries; try++ )); do
+    echo "== try $try of $tries, $(date -u +%H:%M:%S)" >>"$RUN_DIR/sync.log"
+    ssh_sudo "pacman -Sy" >>"$RUN_DIR/sync.log" 2>&1 && return 0
+    (( try < tries )) && sleep 60
+  done
+  return 1
+}
+
+# omarchy_channel <stable|rc|edge>: the box takes Omarchy's packages and its
+# Arch mirror from that channel, the lines omarchy-refresh-pacman would
+# write, without its full update, and origaiTV's own repository stays. For a
+# run that tries the next Omarchy release before its stable channel has it.
+omarchy_channel() {
+  local channel=$1
+  ssh_sudo "sed -i -E 's#(pkgs\.omarchy\.org/)(stable|rc|edge)/#\1$channel/#; s#(https://)(stable|rc|edge)-mirror\.omarchy\.org#\1$channel-mirror.omarchy.org#' /etc/pacman.conf /etc/pacman.d/mirrorlist" &&
+    ssh_sudo "grep -q 'pkgs.omarchy.org/$channel/' /etc/pacman.conf" &&
+    ssh_sudo "pacman -Syy" >>"$RUN_DIR/sync.log" 2>&1
+}

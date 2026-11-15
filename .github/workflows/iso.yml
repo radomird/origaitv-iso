@@ -1,34 +1,34 @@
 name: ISO
 
-# Builds AgenTV's ISO and installs it in a VM (ADR-019, layer 5). The ISO is
+# Builds origaiTV's ISO and installs it in a VM (ADR-019, layer 5). The ISO is
 # omarchy-iso's own build with Omarchy's own packages; the only addition is
-# AgenTV's signed packages, which configs/airootfs/root/customize_airootfs.sh
+# origaiTV's signed packages, which configs/airootfs/root/customize_airootfs.sh
 # adds to the offline mirror and the install (ADR-025). Then upstream's own
 # install test (an unattended install in QEMU with KVM and a boot of the
-# installed system), then AgenTV's image checks in test/agentv/image/.
+# installed system), then origaiTV's image checks in test/origaitv/image/.
 #
 # It runs on pull requests that touch the build, once they're ready for
 # review (the gate job below says when), on release tags and by hand. A
-# merge to agentv doesn't rebuild it: the nightly run in agentv-os builds the
+# merge to agentv doesn't rebuild it: the nightly run in origaitv-os builds the
 # edge ISO every night, from this branch.
 #
-# A release tag is agentv-v1.0.0, a candidate's agentv-v1.0.0-rc1, and a 0.x
-# release was v0.2.0 (bin/agentv-iso-tag). A release's ISO carries stable's
+# A release tag is origaitv-v1.0.0, a candidate's origaitv-v1.0.0-rc1, and a 0.x
+# release was v0.2.0 (bin/origaitv-iso-tag). A release's ISO carries stable's
 # packages, and a candidate's carries edge's. Either way the run first
 # checks that the package is the one the ISO's name promises
-# (bin/agentv-iso-carries): the release itself, or for a candidate the
-# commit agentv-os tagged with the same name. Any other tag that starts the
+# (bin/origaitv-iso-carries): the release itself, or for a candidate the
+# commit origaitv-os tagged with the same name. Any other tag that starts the
 # run fails it, and keeps nothing.
 #
 # The screenshots are always kept. The ISO, about 6.4 GB, is over GitHub's
 # 2 GiB cap for release assets, so a tag or a run by hand keeps it as a
 # workflow artifact. This workflow has no keys and publishes nothing: when a
 # release tag's run passes, publish-iso.yml takes the ISO it kept, signs its
-# checksum and puts it in AgenTV's R2 bucket for people to download.
+# checksum and puts it in origaiTV's R2 bucket for people to download.
 
 on:
   push:
-    tags: ["agentv-v*", "v*"]
+    tags: ["origaitv-v*", "v*"]
   pull_request:
     # ready_for_review: a draft gets no ISO run, so marking it ready is what
     # starts its one full run. labeled: the "image" label asks for one by
@@ -44,7 +44,7 @@ on:
   workflow_dispatch:
     inputs:
       channel:
-        description: "AgenTV package channel the ISO carries"
+        description: "origaiTV package channel the ISO carries"
         type: choice
         options: [edge, stable]
         default: edge
@@ -86,10 +86,10 @@ jobs:
   # one label and not another, so any other label starts it too, but it
   # runs nothing.
   #
-  # Not when agentv-os has an open pull request from a branch of the same
-  # name either: agentv-os's VM test builds the ISO from this branch, with
+  # Not when origaitv-os has an open pull request from a branch of the same
+  # name either: origaitv-os's VM test builds the ISO from this branch, with
   # that change's packages, so the two are tested together, once, there.
-  # That pull request's Check run leaves a notice with the agentv-iso commit
+  # That pull request's Check run leaves a notice with the origaitv-iso commit
   # it builds, so this job can say whether it builds this one.
   #
   # And not for a sync pull request: omarchy-sync.yml builds its ISO by
@@ -126,35 +126,35 @@ jobs:
             run=true
             say "The ISO runs: it has the image label."
           elif [[ $DRAFT == "true" ]]; then
-            say "No ISO run yet: it's a draft. Marking it ready starts one, unless agentv-os has an open pull request from \`$HEAD_REF\` too. The image label runs it on a draft."
+            say "No ISO run yet: it's a draft. Marking it ready starts one, unless origaitv-os has an open pull request from \`$HEAD_REF\` too. The image label runs it on a draft."
           else
-            if ! pr=$(gh api -X GET "repos/$OWNER/agentv-os/pulls" -f state=open -f head="$OWNER:$HEAD_REF" \
+            if ! pr=$(gh api -X GET "repos/$OWNER/origaitv-os/pulls" -f state=open -f head="$OWNER:$HEAD_REF" \
               --jq '.[0] // empty | "\(.number) \(.draft) \(.head.sha)"'); then
-              echo "::error::Couldn't ask agentv-os for an open pull request from $HEAD_REF. Rerun this job."
+              echo "::error::Couldn't ask origaitv-os for an open pull request from $HEAD_REF. Rerun this job."
               exit 1
             fi
             if [[ -z $pr ]]; then
               run=true
-              say "The ISO runs: it's ready for review, and agentv-os has no open pull request from \`$HEAD_REF\`."
+              say "The ISO runs: it's ready for review, and origaitv-os has no open pull request from \`$HEAD_REF\`."
             else
               read -r number os_draft os_sha <<<"$pr"
-              url="https://github.com/$OWNER/agentv-os/pull/$number"
-              say "No ISO run here: agentv-os [#$number]($url) comes from a branch of the same name, and its VM test builds the ISO from this branch, with that change's packages. So the two are tested together, once, there."
+              url="https://github.com/$OWNER/origaitv-os/pull/$number"
+              say "No ISO run here: origaitv-os [#$number]($url) comes from a branch of the same name, and its VM test builds the ISO from this branch, with that change's packages. So the two are tested together, once, there."
               say ""
               if [[ $os_draft == "true" ]]; then
-                say "agentv-os #$number is a draft, so its VM test runs when it's marked ready."
+                say "origaitv-os #$number is a draft, so its VM test runs when it's marked ready."
               else
                 notes=""
-                check=$(gh api -X GET "repos/$OWNER/agentv-os/commits/$os_sha/check-runs" -f check_name="Does this need a VM test?" \
+                check=$(gh api -X GET "repos/$OWNER/origaitv-os/commits/$os_sha/check-runs" -f check_name="Does this need a VM test?" \
                   --jq '.check_runs | sort_by(.started_at) | last | .id // empty') || check=""
                 if [[ -n $check ]]; then
-                  notes=$(gh api "repos/$OWNER/agentv-os/check-runs/$check/annotations" --jq '.[].message') || notes=""
+                  notes=$(gh api "repos/$OWNER/origaitv-os/check-runs/$check/annotations" --jq '.[].message') || notes=""
                 fi
                 if grep -q "$HEAD_SHA" <<<"$notes"; then
                   say "Its latest Check run builds this commit, \`${HEAD_SHA::7}\`: [its checks]($url/checks)."
                 else
-                  say "Its latest Check run, on agentv-os \`${os_sha::7}\`, doesn't build this commit, \`${HEAD_SHA::7}\`. A push to agentv-os's branch starts one that does. Without one, rerun agentv-os #$number's Check run from [its checks]($url/checks), once it isn't running."
-                  echo "::warning::agentv-os #$number's VM test doesn't build this commit yet. Push its branch, or rerun its Check run."
+                  say "Its latest Check run, on origaitv-os \`${os_sha::7}\`, doesn't build this commit, \`${HEAD_SHA::7}\`. A push to origaitv-os's branch starts one that does. Without one, rerun origaitv-os #$number's Check run from [its checks]($url/checks), once it isn't running."
+                  echo "::warning::origaitv-os #$number's VM test doesn't build this commit yet. Push its branch, or rerun its Check run."
                 fi
               fi
             fi
@@ -182,7 +182,7 @@ jobs:
           persist-credentials: false
 
       # A pushed tag is the only push that starts this workflow. It has to
-      # be one of AgenTV's release tags, and it says which packages the ISO
+      # be one of origaiTV's release tags, and it says which packages the ISO
       # carries: stable's for a release, edge's for a candidate. Every other
       # run carries the channel it was asked for, edge unless told. Only an
       # ISO that went through every check is kept: a release tag's always,
@@ -196,15 +196,15 @@ jobs:
           tag=""
           if [[ $GITHUB_EVENT_NAME == "push" ]]; then
             tag=$GITHUB_REF_NAME
-            read -r kind version < <(bin/agentv-iso-tag "$tag") || {
-              echo "::error::$tag isn't one of AgenTV's release tags, so no ISO is built for it. A release is agentv-v1.0.0 and a candidate agentv-v1.0.0-rc1."
+            read -r kind version < <(bin/origaitv-iso-tag "$tag") || {
+              echo "::error::$tag isn't one of origaiTV's release tags, so no ISO is built for it. A release is origaitv-v1.0.0 and a candidate origaitv-v1.0.0-rc1."
               exit 1
             }
             channel=edge
             [[ $kind != "stable" ]] || channel=stable
             keep=true
             echo "ISO_VERSION=$version" >>"$GITHUB_ENV"
-            echo "$tag is AgenTV $version, for the $kind channel. Its ISO carries the $channel packages." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "$tag is origaiTV $version, for the $kind channel. Its ISO carries the $channel packages." | tee -a "$GITHUB_STEP_SUMMARY"
           else
             channel=${ASKED:-edge}
             keep=${KEEP:-false}
@@ -230,32 +230,32 @@ jobs:
           fi
           (( $(avail) >= 40 )) || { echo "::error::only $(avail) GB free, the build and install test need about 40 GB"; exit 1; }
 
-      - name: Fetch AgenTV's signed packages
+      - name: Fetch origaiTV's signed packages
         env:
-          AGENTV_OWNER: ${{ github.repository_owner }}
+          ORIGAITV_OWNER: ${{ github.repository_owner }}
         run: |
           set -o pipefail
-          bin/agentv-iso-packages "$CHANNEL" | tee -a "$GITHUB_STEP_SUMMARY"
+          bin/origaitv-iso-packages "$CHANNEL" | tee -a "$GITHUB_STEP_SUMMARY"
 
       # Before the long build: a release tag's ISO is named after the tag,
       # so the package on it has to be the one that name promises.
       - name: The packages are the ones the tag stands for
         if: env.RELEASE_TAG != ''
         env:
-          AGENTV_OWNER: ${{ github.repository_owner }}
+          ORIGAITV_OWNER: ${{ github.repository_owner }}
         run: |
           set -o pipefail
-          bin/agentv-iso-carries "$RELEASE_TAG" | tee -a "$GITHUB_STEP_SUMMARY"
+          bin/origaitv-iso-carries "$RELEASE_TAG" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      # Upstream's own build and install test, then AgenTV's checks against
-      # the base image it leaves behind (test/agentv/image/ci).
+      # Upstream's own build and install test, then origaiTV's checks against
+      # the base image it leaves behind (test/origaitv/image/ci).
       - name: Build, install, boot, check
         env:
-          AGENTV_OWNER: ${{ github.repository_owner }}
-          # Two VMs at a time (test/agentv/image/run).
-          AGENTV_TEST_LANES: 2
+          ORIGAITV_OWNER: ${{ github.repository_owner }}
+          # Two VMs at a time (test/origaitv/image/run).
+          ORIGAITV_TEST_LANES: 2
           ONLY: ${{ inputs.checks }}
         run: |
           set -o pipefail
@@ -263,7 +263,7 @@ jobs:
           if (( ${#checks[@]} > 0 )); then
             echo "Only these checks run: ${checks[*]}" | tee -a "$GITHUB_STEP_SUMMARY"
           fi
-          test/agentv/image/ci "${checks[@]}" 2>&1 | tee image.log
+          test/origaitv/image/ci "${checks[@]}" 2>&1 | tee image.log
 
       - name: Report
         if: always()
@@ -277,13 +277,13 @@ jobs:
           {
             echo "## ISO"
             echo
-            echo "AgenTV packages: \`$CHANNEL\`. Build: $(cat test-runs/build-seconds 2>/dev/null || echo ?) s."
+            echo "origaiTV packages: \`$CHANNEL\`. Build: $(cat test-runs/build-seconds 2>/dev/null || echo ?) s."
             if [[ -n $base && -f $base/omarchy-install-timing.json ]]; then
               jq -r '"Install: \((.finished_at - .started_at) | round) s."' "$base/omarchy-install-timing.json"
             fi
             echo
           } >>"$GITHUB_STEP_SUMMARY"
-          test/agentv/report iso "S0.1=$(result S0.1)" "S0.4=$(result S0.4)" \
+          test/origaitv/report iso "S0.1=$(result S0.1)" "S0.4=$(result S0.4)" \
             "S1.1=$(result S1.1)" "S1.3=$(result S1.3)" "S1.6=$(result S1.6)" "S1.7=$(result S1.7)" \
             "T1.1=$(result T1.1)" "T1.2=$(result T1.2)" "T1.4=$(result T1.4)" \
             "T2.1=$(result T2.1)" "T2.2=$(result T2.2)" >>"$GITHUB_STEP_SUMMARY"
@@ -319,9 +319,9 @@ jobs:
           # packages it carries and the commit it built, which isn't always
           # the one it runs on. Nothing publishes those.
           if [[ -n $RELEASE_TAG ]]; then
-            name="agentv-$ISO_VERSION-x86_64"
+            name="origaitv-$ISO_VERSION-x86_64"
           else
-            name="agentv-$CHANNEL-$(git rev-parse HEAD | cut -c1-7)-x86_64"
+            name="origaitv-$CHANNEL-$(git rev-parse HEAD | cut -c1-7)-x86_64"
           fi
           mv release/*.iso "release/$name.iso"
           (cd release && sha256sum "$name.iso" >"$name.iso.sha256")

@@ -1,0 +1,83 @@
+#!/bin/bash
+
+# For an image run that starts from the night's installed disk instead of
+# building an ISO and installing it (Q100): brings the box the nightly run
+# installed up to the origaitv packages this run built, the way an update
+# brings them, with origaiTV's migrations after, and makes that the base image
+# every check starts from.
+#
+# Only origaiTV's packages move, with anything new they depend on. The rest of
+# the box stays as the night installed it, so a check sees what this change
+# does and nothing else.
+#
+# Usage: test/origaitv/image/up-to-date <iso>   (in ci's container; the ISO is
+#        only the name the night's base image goes by)
+
+set -euo pipefail
+
+DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+iso="${1:?usage: test/origaitv/image/up-to-date <iso>}"
+export OMARCHY_INTEGRATION_ISO
+OMARCHY_INTEGRATION_ISO=$(realpath "$iso")
+export OMARCHY_INTEGRATION_SSH_PORT="${OMARCHY_INTEGRATION_SSH_PORT:-2322}"
+export OMARCHY_INTEGRATION_MEMORY="${OMARCHY_INTEGRATION_MEMORY:-8192}"
+export OMARCHY_INTEGRATION_NO_PREVIEW=true
+
+source "$DIR/../../../test/integration.d/base-test.sh"
+source "$DIR/tv.sh"
+
+base_image_ready || { echo "No base image from the night to start from" >&2; exit 1; }
+
+shopt -s nullglob
+packages=("$ROOT"/configs/airootfs/usr/share/origaitv-iso/packages/origaitv*.pkg.tar.zst)
+shopt -u nullglob
+(( ${#packages[@]} > 0 )) || { echo "No origaiTV packages to bring the box up to" >&2; exit 1; }
+want=$(basename "$(printf '%s\n' "${packages[@]}" | grep -E '/origaitv-[0-9][^/]*-any\.pkg\.tar\.zst$')" | sed -E 's/^origaitv-(.*)-any\.pkg\.tar\.zst$/\1/')
+
+start_vm_from_base
+wait_for_ssh 300 failure-up-to-date-ssh-timeout || exit 1
+wait_tv 240 >/dev/null || true
+before=$(ssh_guest "pacman -Q origaitv" | cut -d' ' -f2)
+log "The night's box has origaitv $before; bringing it up to $want"
+
+# The packages and their signatures, which pacman checks against
+# origaitv-keyring's key, as for a box's own update.
+ssh_guest "rm -rf /tmp/origaitv-packages && mkdir /tmp/origaitv-packages"
+for package in "${packages[@]}"; do
+  for file in "$package" "$package.sig"; do
+    remote="/tmp/origaitv-packages/${file##*/}"
+    if [[ -f $file ]]; then ssh_guest "cat >$remote" <"$file"; fi
+  done
+done
+# A pull request's run signs its packages with a throwaway key made for the
+# run, never with origaiTV's own (origaitv-os's image.yml), and the night's box
+# has never seen that key. So root says it's good, on this run's box only,
+# the way origaitv-keyring says so for origaiTV's. The run's own origaitv-keyring,
+# one of the packages below, carries it from then on.
+if [[ -n ${ORIGAITV_TEST_PACKAGE_KEY:-} ]]; then
+  test_key=$(gpg --batch --with-colons --show-keys "$ORIGAITV_TEST_PACKAGE_KEY" | awk -F: '$1 == "fpr" { print $10; exit }')
+  [[ $test_key =~ ^[0-9A-F]{40}$ ]] || { echo "ORIGAITV_TEST_PACKAGE_KEY isn't a public key: $ORIGAITV_TEST_PACKAGE_KEY" >&2; exit 1; }
+  ssh_guest "cat >/tmp/origaitv-packages/test-key.asc" <"$ORIGAITV_TEST_PACKAGE_KEY"
+  ssh_sudo "pacman-key --add /tmp/origaitv-packages/test-key.asc && pacman-key --lsign-key $test_key" >"$RUN_DIR/test-key.log" 2>&1 ||
+    { tail -n 20 "$RUN_DIR/test-key.log"; }
+  check "the night's box takes this run's throwaway key for its packages" ssh_sudo "pacman-key --list-keys $test_key"
+fi
+
+# The box's own package lists first, from its mirrors, so a dependency
+# origaiTV's packages have gained since the night, such as esbuild and npm
+# with stage 6, comes from them. Nothing else is upgraded.
+ssh_sudo "pacman -Sy --noconfirm" >"$RUN_DIR/pacman.log" 2>&1 || { tail -n 20 "$RUN_DIR/pacman.log"; }
+ssh_sudo "pacman -U --noconfirm /tmp/origaitv-packages/*.pkg.tar.zst" >>"$RUN_DIR/pacman.log" 2>&1 || { tail -n 20 "$RUN_DIR/pacman.log"; }
+# What origaiTV's post-update hook runs after every update, in a login shell,
+# where Omarchy's environment comes from.
+ssh_guest "bash -lc origaitv-migrate </dev/null" >"$RUN_DIR/migrate.log" 2>&1 || { tail -n 20 "$RUN_DIR/migrate.log"; }
+after=$(ssh_guest "pacman -Q origaitv" | cut -d' ' -f2)
+check "the night's box is on this run's origaitv $want (it had $before, now $after)" test "$after" = "$want"
+check "origaiTV's migrations ran" grep -qE "origaiTV migration|No origaiTV migrations to run" "$RUN_DIR/migrate.log"
+
+# Written down, then off, cleanly: the overlay becomes the base image.
+ssh_sudo "rm -rf /tmp/origaitv-packages; sync"
+stop_vm
+qemu-img commit -q "$RUN_DIR/run.qcow2"
+cp "$RUN_DIR/OVMF_VARS.4m.fd" "$BASE_OVMF"
+finish

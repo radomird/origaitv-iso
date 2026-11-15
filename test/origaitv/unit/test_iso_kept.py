@@ -1,0 +1,382 @@
+"""bin/origaitv-iso-kept: the run an ISO is taken from is looked at before the
+ISO is published. Which repo and workflow made it, what started it and on
+what, whether it passed, whether a release tag's commit is on origaitv,
+whether the ISO's name is the one that run was for, and that it's the only
+ISO the run has.
+
+A release tag is origaitv-v1.0.0, a candidate's origaitv-v1.0.0-rc1, and a 0.x
+release was v0.2.0. No other v tag is origaiTV's. A night's edge ISO goes by
+its edge leg, not by the whole night.
+
+A stand-in for gh is first on PATH. It answers "gh api <path>" from a folder
+of files, one for each address, and writes down every call. Nothing here
+asks GitHub."""
+
+import json
+import os
+import re
+import stat
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+KEPT = ROOT / "bin" / "origaitv-iso-kept"
+WORKFLOW = ROOT / ".github" / "workflows" / "publish-iso.yml"
+
+GH = r'''#!{python}
+import os, sys
+from pathlib import Path
+
+args = [arg for arg in sys.argv[1:] if arg != "--paginate"]
+with open(os.environ["FAKE_LOG"], "a") as log:
+    log.write(" ".join(args) + "\n")
+if len(args) != 2 or args[0] != "api":
+    sys.exit("the stand-in doesn't know: " + " ".join(args))
+answer = Path(os.environ["FAKE_GITHUB"]) / args[1].replace("/", "_").replace("?", "_")
+if not answer.is_file():
+    sys.exit("gh: Not Found (HTTP 404)")
+sys.stdout.write(answer.read_text())
+'''
+
+OWNER = "someone"
+TAG_COMMIT = "a" * 40
+NIGHT_COMMIT = "b" * 40
+
+
+class IsoKept(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.work = Path(self.tmp.name)
+        self.github = self.work / "github"
+        self.github.mkdir()
+        self.log = self.work / "gh.log"
+        self.log.write_text("")
+        bin_dir = self.work / "bin"
+        bin_dir.mkdir()
+        gh = bin_dir / "gh"
+        gh.write_text(GH.replace("{python}", sys.executable))
+        gh.chmod(gh.stat().st_mode | stat.S_IXUSR)
+        self.env = {
+            **os.environ,
+            "PATH": f"{bin_dir}:{os.environ['PATH']}",
+            "FAKE_GITHUB": str(self.github),
+            "FAKE_LOG": str(self.log),
+            "GITHUB_REPOSITORY_OWNER": OWNER,
+        }
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def answer(self, path, value):
+        (self.github / path.replace("/", "_").replace("?", "_")).write_text(json.dumps(value))
+
+    def a_run(self, repo, run, kept, **changes):
+        """A run as GitHub describes it, and what it kept."""
+        record = {
+            "repository": {"full_name": f"{OWNER}/{repo}"},
+            "head_repository": {"full_name": f"{OWNER}/{repo}"},
+            "status": "completed",
+            "conclusion": "success",
+            **changes,
+        }
+        self.answer(f"repos/{OWNER}/{repo}/actions/runs/{run}", record)
+        self.answer(
+            f"repos/{OWNER}/{repo}/actions/runs/{run}/artifacts?per_page=100",
+            {"artifacts": [{"name": name, "expired": False} for name in kept]},
+        )
+
+    def a_tags_run(self, tag="origaitv-v1.0.0", kept=None, on_origaitv="ahead", **changes):
+        version = tag.removeprefix("origaitv-").removeprefix("v")
+        kept = [f"origaitv-{version}-x86_64", f"origaitv-{version}-x86_64.sha256"] if kept is None else kept
+        record = {"path": ".github/workflows/iso.yml", "event": "push", "head_branch": tag, "head_sha": TAG_COMMIT, **changes}
+        self.a_run("origaitv-iso", 7, kept, **record)
+        self.answer(f"repos/{OWNER}/origaitv-iso/compare/{record['head_sha']}...agentv", {"status": on_origaitv})
+
+    def a_night(self, kept=("origaitv-0.2.0.r422.g155320d30-x86_64",), jobs=None, **changes):
+        record = {"path": ".github/workflows/nightly.yml", "event": "schedule", "head_branch": "agentv", "head_sha": NIGHT_COMMIT, **changes}
+        self.a_run("origaitv-os", 9, list(kept), **record)
+        answer = self.github / f"repos_{OWNER}_origaitv-os_actions_runs_9_jobs_filter=latest&per_page=100"
+        if jobs is None:
+            answer.unlink(missing_ok=True)
+        else:
+            answer.write_text(json.dumps({"jobs": [{"name": name, "status": "completed", "conclusion": how} for name, how in jobs]}))
+
+    def kept(self, channel, repo, run, name):
+        return subprocess.run([str(KEPT), channel, repo, str(run), name], env=self.env, capture_output=True, text=True)
+
+    def passes(self, *args):
+        result = self.kept(*args)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout
+
+    def refused(self, why, *args):
+        result = self.kept(*args)
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(result.stdout, "")
+        self.assertIn(why, result.stderr)
+
+    # --- a release tag's run -------------------------------------------------
+
+    def test_a_release_tags_run_is_stable(self):
+        self.a_tags_run()
+        said = self.passes("stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
+        self.assertIn("origaitv-1.0.0-x86_64", said)
+        self.assertIn("started by push on `origaitv-v1.0.0`", said)
+
+    def test_a_release_candidates_run_is_rc(self):
+        self.a_tags_run("origaitv-v1.0.0-rc2")
+        self.passes("rc", "origaitv-iso", 7, "origaitv-1.0.0-rc2-x86_64")
+
+    def test_a_0x_release_keeps_its_v_tag(self):
+        self.a_tags_run("v0.2.0")
+        self.passes("stable", "origaitv-iso", 7, "origaitv-0.2.0-x86_64")
+
+    def test_no_other_v_tag_is_a_release(self):
+        # From 1.0 on a tag says origaitv. In origaitv-os a v1 to v4 tag is
+        # Omarchy's, and the rule is the same here.
+        for tag in ("v1.0.0", "v4.5.0"):
+            self.a_tags_run(tag)
+            version = tag.removeprefix("v")
+            self.refused("isn't a release tag", "stable", "origaitv-iso", 7, f"origaitv-{version}-x86_64")
+        for tag in ("v1.0.0-rc1", "v0.3.0-rc1"):
+            self.a_tags_run(tag)
+            version = tag.removeprefix("v")
+            self.refused("isn't a release candidate's tag", "rc", "origaitv-iso", 7, f"origaitv-{version}-x86_64")
+        for tag in ("origaitv-1.0.0", "origaitv-v1.0", "origaitv-v1.0.0-beta1", "origaitv-v1.0.0x"):
+            self.a_tags_run(tag)
+            self.refused("isn't a release tag", "stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
+
+    def test_a_tag_on_origaitvs_newest_commit_counts(self):
+        self.a_tags_run(on_origaitv="identical")
+        self.passes("stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
+
+    def test_a_tag_on_a_commit_origaitv_doesnt_have_is_refused(self):
+        for status in ("diverged", "behind"):
+            self.a_tags_run(on_origaitv=status)
+            self.refused("which the agentv branch doesn't have", "stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
+
+    def test_no_answer_about_the_tags_commit_is_refused(self):
+        self.a_tags_run()
+        (self.github / f"repos_{OWNER}_origaitv-iso_compare_{TAG_COMMIT}...agentv").unlink()
+        self.refused("Couldn't ask whether agentv has origaitv-v1.0.0's commit", "stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
+
+    def test_a_run_started_by_hand_is_never_a_release(self):
+        # On a tag too: it can build another ref than the one it runs on.
+        self.a_tags_run(event="workflow_dispatch")
+        self.refused("was started by workflow_dispatch", "stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
+
+    def test_the_tag_says_which_channel(self):
+        self.a_tags_run("origaitv-v1.0.0-rc1")
+        self.refused("isn't a release tag", "stable", "origaitv-iso", 7, "origaitv-1.0.0-rc1-x86_64")
+        self.a_tags_run("origaitv-v1.0.0")
+        self.refused("isn't a release candidate's tag", "rc", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
+        self.a_tags_run("some-branch")
+        self.refused("isn't a release tag", "stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
+
+    def test_the_name_is_the_tags_version(self):
+        self.a_tags_run("origaitv-v1.0.0", kept=["origaitv-9.9.9-x86_64"])
+        self.refused("its ISO is origaitv-1.0.0-x86_64, not origaitv-9.9.9-x86_64", "stable", "origaitv-iso", 7, "origaitv-9.9.9-x86_64")
+        # The name carries the version, not the tag.
+        self.a_tags_run("origaitv-v1.0.0", kept=["origaitv-origaitv-v1.0.0-x86_64"])
+        self.refused("its ISO is origaitv-1.0.0-x86_64", "stable", "origaitv-iso", 7, "origaitv-origaitv-v1.0.0-x86_64")
+
+    def test_a_release_comes_from_the_iso_workflow_in_origaitv_iso(self):
+        self.a_tags_run(path=".github/workflows/other.yml")
+        self.refused("comes from origaitv-iso's ISO workflow", "stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
+        self.a_night(kept=["origaitv-1.0.0-x86_64"])
+        self.refused("comes from origaitv-iso's ISO workflow", "stable", "origaitv-os", 9, "origaitv-1.0.0-x86_64")
+
+    # --- a night's run -------------------------------------------------------
+
+    def test_a_scheduled_nights_iso_is_edge(self):
+        self.a_night()
+        self.passes("edge", "origaitv-os", 9, "origaitv-0.2.0.r422.g155320d30-x86_64")
+        self.a_night(kept=["origaitv-edge-2026.11.10-abc1234-x86_64"])
+        self.passes("edge", "origaitv-os", 9, "origaitv-edge-2026.11.10-abc1234-x86_64")
+
+    RULE = "98f46c5de20a1c42b19336d6d881e080b6ecec60"
+
+    def test_a_night_on_another_branch_is_refused(self):
+        for event in ("schedule", "workflow_dispatch"):
+            self.a_night(event=event, head_branch="some-branch")
+            self.refused("on `some-branch`", "edge", "origaitv-os", 9, "origaitv-0.2.0.r422.g155320d30-x86_64")
+        self.a_night(event="push")
+        self.refused("was started by push", "edge", "origaitv-os", 9, "origaitv-0.2.0.r422.g155320d30-x86_64")
+
+    def test_a_night_started_by_hand_after_the_rule_is_edge(self):
+        # From that commit on, a night started by hand keeps an ISO only
+        # when nobody typed in an origaitv-iso ref.
+        for status in ("ahead", "identical"):
+            self.a_night(event="workflow_dispatch")
+            self.answer(f"repos/{OWNER}/origaitv-os/compare/{self.RULE}...{NIGHT_COMMIT}", {"status": status})
+            self.passes("edge", "origaitv-os", 9, "origaitv-0.2.0.r422.g155320d30-x86_64")
+
+    def test_a_night_started_by_hand_before_the_rule_is_refused(self):
+        # Then, one started with a branch of origaitv-iso typed in kept its ISO.
+        for status in ("behind", "diverged"):
+            self.a_night(event="workflow_dispatch")
+            self.answer(f"repos/{OWNER}/origaitv-os/compare/{self.RULE}...{NIGHT_COMMIT}", {"status": status})
+            self.refused("from before a night started by hand stopped keeping an ISO", "edge", "origaitv-os", 9, "origaitv-0.2.0.r422.g155320d30-x86_64")
+        self.a_night(event="workflow_dispatch")
+        (self.github / f"repos_{OWNER}_origaitv-os_compare_{self.RULE}...{NIGHT_COMMIT}").unlink()
+        self.refused("Couldn't ask whether run 9's commit", "edge", "origaitv-os", 9, "origaitv-0.2.0.r422.g155320d30-x86_64")
+
+    def test_a_night_started_by_hand_still_needs_its_edge_leg(self):
+        failed = [("Install and test edge / Get the box ready", "success"), ("Install and test edge / Which image checks passed", "failure")]
+        self.a_night(event="workflow_dispatch", conclusion="failure", jobs=failed)
+        self.answer(f"repos/{OWNER}/origaitv-os/compare/{self.RULE}...{NIGHT_COMMIT}", {"status": "ahead"})
+        self.refused("The edge leg didn't pass", "edge", "origaitv-os", 9, "origaitv-0.2.0.r422.g155320d30-x86_64")
+
+    def test_the_rule_is_origaitv_os_merge_of_the_change(self):
+        # The commit is named, not guessed: it has to be a whole one.
+        text = KEPT.read_text()
+        self.assertIn(f"NIGHTLY_RULE={self.RULE}\n", text)
+
+    def test_another_workflows_iso_is_never_edge(self):
+        self.a_night(path=".github/workflows/image.yml", event="workflow_dispatch")
+        self.refused("comes from origaitv-os's Nightly workflow", "edge", "origaitv-os", 9, "origaitv-0.2.0.r422.g155320d30-x86_64")
+
+    def test_an_iso_run_by_hand_in_origaitv_iso_is_never_edge(self):
+        # Its record doesn't say which branch or commit it built.
+        self.a_run(
+            "origaitv-iso", 7, ["origaitv-edge-abc1234-x86_64"],
+            path=".github/workflows/iso.yml", event="workflow_dispatch", head_branch="agentv", head_sha=TAG_COMMIT,
+        )
+        self.refused("A run started by hand can build a branch that isn't merged", "edge", "origaitv-iso", 7, "origaitv-edge-abc1234-x86_64")
+
+    def test_edge_takes_only_an_edge_name(self):
+        self.a_night(kept=["origaitv-1.0.0-x86_64"])
+        self.refused("isn't an edge ISO's name", "edge", "origaitv-os", 9, "origaitv-1.0.0-x86_64")
+
+    # --- either --------------------------------------------------------------
+
+    def test_a_run_that_didnt_pass_is_refused(self):
+        for changes in ({"conclusion": "failure"}, {"conclusion": "cancelled"}, {"status": "in_progress", "conclusion": None}):
+            self.a_tags_run(**changes)
+            self.refused("didn't pass", "stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
+            # A night that isn't green, with no word on its jobs, is no better.
+            self.a_night(**changes)
+            why = "didn't pass" if changes.get("status") else "Couldn't read run 9's jobs"
+            self.refused(why, "edge", "origaitv-os", 9, "origaitv-0.2.0.r422.g155320d30-x86_64")
+
+    EDGE = "Install and test edge / "
+    STABLE = "Install and test stable / "
+
+    def test_a_nights_edge_iso_goes_by_its_edge_leg(self):
+        # The stable leg failed, so the night did. Edge passed every check.
+        passed = [(self.EDGE + "Get the box ready", "success"), (self.EDGE + "Checks 1 of 4", "success"), (self.EDGE + "Which image checks passed", "success")]
+        self.a_night(conclusion="failure", jobs=passed + [(self.STABLE + "Build the ISO, install it, boot it, check it", "failure")])
+        self.passes("edge", "origaitv-os", 9, "origaitv-0.2.0.r422.g155320d30-x86_64")
+
+    def test_a_night_whose_edge_leg_failed_is_refused(self):
+        failed = [(self.EDGE + "Get the box ready", "success"), (self.EDGE + "Checks 1 of 4", "failure"), (self.EDGE + "Which image checks passed", "failure")]
+        self.a_night(conclusion="failure", jobs=failed)
+        self.refused("The edge leg didn't pass", "edge", "origaitv-os", 9, "origaitv-0.2.0.r422.g155320d30-x86_64")
+        # Cancelled before its last job said every check passed.
+        self.a_night(conclusion="cancelled", jobs=[(self.EDGE + "Get the box ready", "success")])
+        self.refused("didn't pass", "edge", "origaitv-os", 9, "origaitv-0.2.0.r422.g155320d30-x86_64")
+        # A night still running is never looked into.
+        self.a_night(status="in_progress", conclusion=None, jobs=[(self.EDGE + "Which image checks passed", "success")])
+        self.refused("didn't pass", "edge", "origaitv-os", 9, "origaitv-0.2.0.r422.g155320d30-x86_64")
+
+    def test_a_run_with_more_than_one_iso_is_refused(self):
+        # Started again from the top, a run can have kept one each time.
+        two = ["origaitv-0.2.0.r422.g155320d30-x86_64", "origaitv-0.2.0.r430.gabcdef012-x86_64", "origaitv-0.2.0.r422.g155320d30-x86_64.sha256"]
+        self.a_night(kept=two)
+        self.refused("kept more than one ISO", "edge", "origaitv-os", 9, "origaitv-0.2.0.r422.g155320d30-x86_64")
+        self.a_tags_run(kept=["origaitv-1.0.0-x86_64", "origaitv-edge-abc1234-x86_64"])
+        self.refused("kept more than one ISO", "stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
+        # What isn't an ISO doesn't count.
+        self.a_tags_run(kept=["origaitv-1.0.0-x86_64", "origaitv-1.0.0-x86_64.sha256", "iso-test-7-1"])
+        self.passes("stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
+
+    def test_a_run_from_another_repos_code_is_refused(self):
+        self.a_tags_run(head_repository={"full_name": "someone-else/origaitv-iso"})
+        self.refused("isn't origaitv-iso's own", "stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
+
+    def test_a_run_that_isnt_there_is_refused(self):
+        self.refused("Couldn't read origaitv-iso's run 7", "stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
+
+    def test_the_run_has_to_still_have_that_iso(self):
+        self.a_tags_run(kept=["origaitv-1.0.0-x86_64.sha256", "iso-test-7-1"])
+        self.refused("has no ISO called origaitv-1.0.0-x86_64", "stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
+        self.a_night()
+        self.answer(
+            f"repos/{OWNER}/origaitv-os/actions/runs/9/artifacts?per_page=100",
+            {"artifacts": [{"name": "origaitv-0.2.0.r422.g155320d30-x86_64", "expired": True}]},
+        )
+        self.refused("has no ISO called", "edge", "origaitv-os", 9, "origaitv-0.2.0.r422.g155320d30-x86_64")
+
+    def test_it_takes_only_what_the_workflow_hands_it(self):
+        for args in (
+            ("nightly", "origaitv-iso", 7, "origaitv-1.0.0-x86_64"),
+            ("stable", "origaitv-apps", 7, "origaitv-1.0.0-x86_64"),
+            ("stable", "origaitv-iso", "7/../8", "origaitv-1.0.0-x86_64"),
+            ("stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64/../x"),
+        ):
+            result = self.kept(*args)
+            self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.log.read_text(), "")
+
+    def test_it_only_reads(self):
+        self.a_tags_run()
+        self.passes("stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
+        for call in self.log.read_text().splitlines():
+            self.assertRegex(call, r"^api repos/someone/origaitv-iso/(actions/runs/7(/artifacts\?per_page=100)?|compare/a{40}\.\.\.origaitv)$")
+
+
+def jobs():
+    """Each job's text, by name, without its comments."""
+    text = WORKFLOW.read_text()
+    body = text[text.index("\njobs:\n") + len("\njobs:\n"):]
+    found = {}
+    name = None
+    for line in body.splitlines():
+        match = re.match(r"^  ([a-z][a-z0-9-]*):$", line)
+        if match:
+            name = match.group(1)
+            found[name] = []
+        elif name and not line.lstrip().startswith("#"):
+            found[name].append(line)
+    return {name: "\n".join(lines) for name, lines in found.items()}
+
+
+class TheWorkflowAsksFirst(unittest.TestCase):
+    def test_the_run_is_checked_in_the_job_with_no_secrets(self):
+        which = jobs()["which"]
+        decide = which.index("id: which")
+        check = which.index('bin/origaitv-iso-kept "$CHANNEL" "$REPO" "$RUN_ID" "$NAME"')
+        self.assertLess(decide, check)
+        self.assertNotIn("secrets.", which)
+        self.assertNotIn("environment:", which)
+        # It checks what the step before decided, not the inputs again.
+        step = which[which.index("- name: Check the run that kept it"):]
+        for name, output in (("CHANNEL", "channel"), ("REPO", "repo"), ("RUN_ID", "run-id"), ("NAME", "name")):
+            self.assertIn(f"{name}: ${{{{ steps.which.outputs.{output} }}}}", step)
+        # A pipe to the summary mustn't hide a refusal.
+        self.assertIn("set -o pipefail", step)
+
+    def test_every_way_it_starts_the_run_is_checked(self):
+        # A tag's run, a run named by hand, and the morning's night too.
+        which = jobs()["which"]
+        step = which[which.index("- name: Check the run that kept it"):]
+        condition = re.search(r"^\s+if: (.+)$", step, re.M).group(1)
+        self.assertEqual(condition, "steps.which.outputs.publish == 'true'")
+
+    def test_every_job_with_a_key_waits_for_it(self):
+        found = jobs()
+        self.assertRegex(found["sum"], r"needs: which\n")
+        self.assertRegex(found["sign"], r"needs: \[which, sum\]\n")
+        self.assertRegex(found["publish"], r"needs: \[which, sign\]\n")
+        # None of them runs when the job before it failed.
+        for name in ("sum", "sign", "publish"):
+            self.assertNotIn("always()", found[name])
+            self.assertNotIn("!cancelled()", found[name])
+            self.assertNotIn("failure()", found[name])
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,165 @@
+#!/bin/bash
+#
+# S5.6: TV setup started on a box from an older build brings itself up to
+# date at getting ready, the screens after it come from the new release, and
+# setup picks up at the same step after a restart (ADR-025, board 35).
+#
+# The box starts on the welcome screen. Enter carries on with the keyboard,
+# as the VM is online on its cable. At getting ready the screen daemon's
+# update check finds the newer origaitv this image run hands over, and the
+# TV's own install puts it on. origaiTV restarts on it, or the box does when
+# the update needs that, and setup carries on from the new release to what
+# the TV is for. A restart there comes back to the same step, and Enter on
+# it finishes setup. With no newer origaitv, getting ready finds nothing to
+# install and moves on, and the rest is the same.
+
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)/test/integration.d/base-test.sh"
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/tv.sh"
+
+base_image_ready || { echo "No base image; run ./test/integration first" >&2; exit 1; }
+
+if [[ -n ${ORIGAITV_TEST_UPDATE_REPO:-} ]]; then
+  port=$((SSH_PORT + 3))
+  (cd "$ORIGAITV_TEST_UPDATE_REPO" && exec python3 -m http.server --bind 127.0.0.1 "$port") >/dev/null 2>&1 &
+  server=$!
+  trap 'kill "$server" 2>/dev/null || true' EXIT
+fi
+
+# until_setup <jq filter> <seconds>: until the filter on what the setup
+# screens hear (/api/setup) is true.
+until_setup() {
+  local started=$SECONDS
+  while (( SECONDS - started < $2 )); do
+    [[ $(ssh_guest "curl -fsS --max-time 3 http://127.0.0.1:3000/api/setup" 2>/dev/null | jq -r "$1" 2>/dev/null) == "true" ]] && return 0
+    sleep 2
+  done
+  return 1
+}
+
+# until_file <jq filter> <file> <seconds>: until the filter is true.
+until_file() {
+  local started=$SECONDS
+  while (( SECONDS - started < $3 )); do
+    [[ $(ssh_guest "cat $2 2>/dev/null" | jq -r "$1" 2>/dev/null) == "true" ]] && return 0
+    sleep 3
+  done
+  return 1
+}
+
+start_vm_from_base
+wait_for_ssh 300 failure-S5.6-ssh-timeout || exit 1
+wait_tv 240 >/dev/null || true
+
+check "setup starts on the welcome screen" until_setup '.setup.step == "welcome" and (.setup.done | not)' 30
+check "the welcome screen is on the TV (OCR)" screen_shows_welcome "success-S5.6-welcome"
+# The output the box step would leave the VM on, so the TV session the
+# update restarts draws again in time for getting ready to be read. At
+# QEMU's 4K in software it's still drawing 30 s on.
+check "the box is at 1080p output, as setup leaves a box that can't keep 4K smooth" at_1080p 60
+before=$(ssh_guest "pacman -Q origaitv" | cut -d' ' -f2)
+if [[ -n ${ORIGAITV_TEST_UPDATE_REPO:-} ]]; then
+  # The newer origaitv this run hands over, on edge, where it doesn't wait for
+  # the nightly run (ADR-026).
+  ssh_sudo "install -d /etc/origaitv && echo http://10.0.2.2:$port >/etc/origaitv/repository && echo edge >/etc/origaitv/channel"
+fi
+
+guest "origaitv input key enter" >"$RUN_DIR/input.log" 2>&1 || true
+check "Enter on the welcome screen carries on with the keyboard, to getting ready" until_setup '.setup.step == "ready" and .setup.keyboard' 60
+if [[ -n ${ORIGAITV_TEST_UPDATE_REPO:-} ]]; then
+  # The update can restart the TV session seconds after this, and the
+  # headline types itself in first, so the screenshots are taken before any
+  # is read.
+  check "getting ready is on the TV (OCR)" ocr_finds_soon success-S5.6-getting-ready "getting ready" 6
+else
+  # With nothing newer, getting ready moves on by itself in a few seconds,
+  # which can be before OCR reads it: then the step after it is on the TV,
+  # your box, where the TV is (ADR-055) on a release before it, or the AI
+  # step on one before that.
+  check "getting ready is on the TV, or the step it moved on to (OCR)" ocr_finds success-S5.6-getting-ready "getting ready|your setup|your box|another location|where is this tv|pick your ai|which ai do you use" 30
+fi
+# Said here, so a failed run's log has what the TV showed in its place.
+grep -Eqi "getting ready" "$RUN_DIR/success-S5.6-getting-ready.txt" 2>/dev/null ||
+  { tr -s '\n ' <"$RUN_DIR/success-S5.6-getting-ready.txt" 2>/dev/null | head -c 1500 | sed 's/^/the TV read: /'; echo; } || true
+capture_console "success-S5.6-getting-ready"
+
+if [[ -n ${ORIGAITV_TEST_UPDATE_REPO:-} ]]; then
+  # From a repo on the same machine the install can be in before the check
+  # first looks, so done counts too.
+  check "S5.6 getting ready finds origaitv $ORIGAITV_TEST_UPDATE_VERSION and starts the TV's own install" \
+    until_setup "(.setup.ready.update == \"installing\" or .setup.ready.update == \"done\") and .setup.ready.to == \"$ORIGAITV_TEST_UPDATE_VERSION\"" 300
+  ssh_guest "curl -fsS http://127.0.0.1:3000/api/setup" >"$RUN_DIR/setup-installing.json" 2>&1 || true
+  boot_id=$(ssh_guest "cat /proc/sys/kernel/random/boot_id")
+  log "Waiting for the update to finish"
+  until_file '.state != "running"' /var/lib/origaitv/update/progress.json 2400 || true
+  ssh_guest "cat /var/lib/origaitv/update/progress.json" >"$RUN_DIR/progress.json" 2>&1 || true
+  check "S5.6 the update finishes ($(jq -r '"\(.state): \(.detail)"' "$RUN_DIR/progress.json" 2>/dev/null))" \
+    jq -e '.state == "done" or .state == "restarting"' "$RUN_DIR/progress.json"
+  if [[ $(jq -r .state "$RUN_DIR/progress.json") == "restarting" ]]; then
+    log "The update restarts the box"
+    sleep 20
+    wait_for_ssh 300 failure-S5.6-update-reboot-ssh-timeout || exit 1
+    wait_tv 240 >/dev/null || true
+  else
+    took=$(wait_running "$ORIGAITV_TEST_UPDATE_VERSION" 120) || took=""
+    check "S5.6 the screens after it come from the new release: the daemon, the screen daemon and setup's page run origaitv $ORIGAITV_TEST_UPDATE_VERSION${took:+ (after $took s)}" \
+      test -n "$took"
+    check "and the box didn't restart for it" test "$(ssh_guest "cat /proc/sys/kernel/random/boot_id")" = "$boot_id"
+  fi
+  after=$(ssh_guest "pacman -Q origaitv" | cut -d' ' -f2)
+  check "S5.6 the box is on origaitv $ORIGAITV_TEST_UPDATE_VERSION (was $before, now $after)" test "$after" = "$ORIGAITV_TEST_UPDATE_VERSION"
+  check "S5.6 the daemon setup talks to runs the new release" test "$(jq -r '.running // ""' <<<"$(health)")" = "$ORIGAITV_TEST_UPDATE_VERSION"
+  check "S5.6 getting ready sees the update in, and setup moves on to the next step" \
+    until_setup '.setup.ready.update == "done" and .setup.step != "ready" and .setup.step != "welcome"' 180
+else
+  log "No newer origaitv to update to; getting ready finds nothing to install"
+  # Unless edge got a newer build while this run went on, as other work
+  # lands. Then getting ready installs it first, and that's taken only when
+  # it's exactly edge's newest, newer than what the box started on.
+  check "getting ready moves on to the next step" \
+    until_setup '(.setup.ready.update | IN("none", "failed", "done")) and .setup.step != "ready" and .setup.step != "welcome"' 400
+  ready=$(ssh_guest "curl -fsS http://127.0.0.1:3000/api/setup" 2>/dev/null | jq -c '.setup.ready' 2>/dev/null)
+  log "getting ready said: $ready (the box started on origaitv $before)"
+  check "and says how it went" test -n "$ready"
+  if [[ $(jq -r '.update' <<<"$ready" 2>/dev/null) == "done" ]]; then
+    # Edge's newest, as the box's own package lists have it since that update.
+    newest=$(ssh_guest "pacman -Si origaitv 2>/dev/null" | awk '/^Version/ { print $3; exit }')
+    edge_moved() {
+      [[ -n $newest && $(jq -r '.to // ""' <<<"$ready") == "$newest" && $newest != "$before" ]] &&
+        [[ $(ssh_guest "vercmp $newest $before") == 1 ]] &&
+        [[ $(ssh_guest "pacman -Q origaitv" | cut -d' ' -f2) == "$newest" ]]
+    }
+    check "edge got a newer build mid-run, and getting ready installed exactly that one ($before to ${newest:-none})" edge_moved
+  fi
+fi
+ssh_guest "curl -fsS http://127.0.0.1:3000/api/setup" >"$RUN_DIR/setup-next.json" 2>&1 || true
+next=$(jq -r '.setup.step // ""' "$RUN_DIR/setup-next.json")
+# Each step after getting ready has its own words: your setup says "here's
+# your setup", the location offers "another location" or asks you to pick
+# yours (ADR-055), the AI's says "pick your AI", who's watching says so. The
+# rest are what a release before the words changed says.
+NEXT_TEXT="your setup|another location|pick your location|pick your ai|who.?s watching|what.?s it for|your box|where is this tv|pick the country|pick one|which ai|who watches|what is this tv for"
+check "the step after getting ready ($next) is on the TV (OCR)" ocr_finds success-S5.6-next "$NEXT_TEXT" 30
+capture_console "success-S5.6-next"
+
+# A restart: setup comes back at the same step.
+boot_id=$(ssh_guest "cat /proc/sys/kernel/random/boot_id")
+ssh_sudo "systemctl reboot" >/dev/null 2>&1 || true
+sleep 20
+wait_for_ssh 300 failure-S5.6-restart-ssh-timeout || exit 1
+wait_tv 240 >/dev/null || true
+check "the box restarted" test "$(ssh_guest "cat /proc/sys/kernel/random/boot_id")" != "$boot_id"
+check "S5.6 after a restart, setup picks up at the same step ($next)" until_setup ".setup.step == \"$next\" and (.setup.done | not)" 60
+check "S5.6 /health says so too" test "$(jq -r '.setup_step // ""' <<<"$(health)")" = "$next"
+check "S5.6 and the TV shows that step again (OCR)" ocr_finds success-S5.6-after-restart "$NEXT_TEXT" 30
+capture_console "success-S5.6-after-restart"
+
+# origaitv setup skip finishes it: home takes over.
+guest "origaitv setup skip" >"$RUN_DIR/setup.log" 2>&1 || true
+check "origaitv setup skip finishes setup, and home takes over" until_setup '.setup.done' 60
+took=$(wait_home 60) || took=""
+check "home is in front${took:+ (after $took s)}" test -n "$took"
+check "and /health says home" test "$(jq -r '.screen // ""' <<<"$(health)")" = "home"
+capture_console "success-S5.6-home"
+
+stop_vm
+finish

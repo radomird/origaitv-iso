@@ -4,7 +4,7 @@ description: >-
   zbarimg for the QR code tests. They're kept in GitHub's cache, keyed on
   exactly what apt would fetch, so a run needs Ubuntu's mirror only when the
   cache doesn't have them. The push runs on agentv save it, and pull
-  requests read it from there. agentv-os has the same action.
+  requests read it from there. origaitv-os has the same action.
 
 inputs:
   packages:
