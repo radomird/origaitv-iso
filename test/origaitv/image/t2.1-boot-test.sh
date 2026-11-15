@@ -1,13 +1,13 @@
 #!/bin/bash
 #
 # T2.1: straight to the TV (ADR-060). From power on to home, the TV shows the
-# firmware's own screen, then origaiTV's splash until home is drawn: no boot
+# firmware's own screen, then OrigaiTV's splash until home is drawn: no boot
 # menu, no text and no black or white screen on the way. A recorder reads
 # the screen about ten times a second from the moment the VM is switched on,
 # and OCR reads every frame that changed (frames.py). That's an ordinary
 # boot, then a first boot again, whose work, such as rebuilding the boot
 # image, happens behind the splash too. Then a key in the boot loader's
-# quiet second shows origaiTV's boot menu, which waits, and Enter on it boots
+# quiet second shows OrigaiTV's boot menu, which waits, and Enter on it boots
 # the first entry, back to the TV.
 #
 # It takes about eight minutes: three boots, two of them read frame by
@@ -110,7 +110,7 @@ record() {
   check "the recorder saw the firmware hand over to the boot loader ($what)" test "$(verdict .verdict.handover)" = true
   check "T2.1 no boot menu on the screen from power on to home, $what (OCR every frame)" test "$(verdict '.verdict.menu | length')" = 0
   check "T2.1 no text on the screen from the boot loader to home, $what (OCR every frame)" test "$(verdict '.verdict.text | length')" = 0
-  check "T2.1 origaiTV's splash shows on the way, $what" test "$(verdict .verdict.splash)" = true
+  check "T2.1 OrigaiTV's splash shows on the way, $what" test "$(verdict .verdict.splash)" = true
   check "T2.1 the splash stays until home is drawn, with no black or white screen between them, $what" \
     test "$(verdict '.verdict.gaps | length')" = 0
   check "home is on the recording, $what" test "$(verdict .verdict.home)" = true
@@ -161,19 +161,19 @@ if until_handover "$RUN_DIR/serial-key.log" 120; then
   done
 fi
 menu=0
-if wait_for_screen "origaiTV" 30; then
+if wait_for_screen "OrigaiTV" 30; then
   menu=1
   capture_console "success-T2.1-menu"
   ocr_screen >"$RUN_DIR/menu.txt" || true
 fi
-check "T2.1 a key in the boot loader's first second shows origaiTV's boot menu (OCR)" test "$menu" = 1
+check "T2.1 a key in the boot loader's first second shows OrigaiTV's boot menu (OCR)" test "$menu" = 1
 if (( menu )); then
-  # origaiTV's entry, with the kernel under it (and the snapshots, once an
+  # OrigaiTV's entry, with the kernel under it (and the snapshots, once an
   # update has made one).
-  check "the menu has origaiTV's entry on it" grep -qiE "omarchy|linux" "$RUN_DIR/menu.txt"
+  check "the menu has OrigaiTV's entry on it" grep -qiE "omarchy|linux" "$RUN_DIR/menu.txt"
   # A key stops the countdown, so the menu waits for a choice.
   sleep 10
-  check "the menu is still there 10 s later" wait_for_screen "origaiTV" 5
+  check "the menu is still there 10 s later" wait_for_screen "OrigaiTV" 5
   capture_console "success-T2.1-menu-waits"
   press ret
   check "Enter on the menu boots its first entry" wait_for_ssh 300 failure-T2.1-menu-ssh-timeout

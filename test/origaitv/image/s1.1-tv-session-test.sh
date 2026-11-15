@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# S1.1: a cold boot lands in origaiTV's TV session (ADR-031) on the welcome
+# S1.1: a cold boot lands in OrigaiTV's TV session (ADR-031) on the welcome
 # page with no manual step, and nothing of Omarchy's desktop shows in it: no
 # bar, notice, screensaver or idle lock. It waits past the time Omarchy's
 # screensaver would start, and the TV is still the welcome page.
@@ -33,7 +33,7 @@ check "S1.1 the home screen is the welcome page (daemon /health)" \
   test "$(jq -r '.welcome_shown' "$RUN_DIR/health.json")" = "true"
 check "S1.1 the home screen runs in a Chromium of its own, as a kiosk app window" \
   ssh_guest "pgrep -af 'user-data-dir=/var/lib/origaitv/chromium-home' | grep -- '--kiosk' | grep -q -- '--app=http://127.0.0.1:3000/'"
-check "the TV session runs Hyprland with origaiTV's setup" \
+check "the TV session runs Hyprland with OrigaiTV's setup" \
   ssh_guest "pgrep -af 'Hyprland.*--config /usr/share/origaitv/session/hypr.lua' >/dev/null"
 
 # Nothing of Omarchy's desktop: its shell draws the bar, the notices, the
@@ -65,7 +65,7 @@ check "S1.1 after three idle minutes the home screen is still in front" \
 # updates the box first. On a pull request's run that's edge's origaitv, often
 # newer than the one being checked, and the update restarts the TV session.
 guest_hyprctl "-j devices" >"$RUN_DIR/devices.json" 2>&1 || true
-check "the virtual input device is on: Hyprland sees origaiTV remote" \
+check "the virtual input device is on: Hyprland sees OrigaiTV remote" \
   jq -e '[.keyboards[].name] | any(test("origaitv-remote"))' "$RUN_DIR/devices.json"
 guest "origaitv screen keys 6" >"$RUN_DIR/keys.json" 2>&1 &
 keys=$!
@@ -76,7 +76,7 @@ check "the virtual input device's keys reach the home screen" \
   test "$(jq -c '.keys' "$RUN_DIR/keys.json" 2>/dev/null)" = '["ArrowUp","ArrowDown","ArrowRight"]'
 
 # A toast over the app in front (S1.5 on the NUC is a toast over a film).
-guest "origaitv screen toast 'origaiTV toast over the TV'" >"$RUN_DIR/toast.json" 2>&1 || true
+guest "origaitv screen toast 'OrigaiTV toast over the TV'" >"$RUN_DIR/toast.json" 2>&1 || true
 sleep 1
 check "a toast draws over the app in front, as an overlay" \
   test "$(front '[.layers[] | select(. == "origaitv-toast")] | length')" -ge 1

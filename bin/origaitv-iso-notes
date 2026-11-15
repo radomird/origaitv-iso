@@ -3,10 +3,10 @@
 # origaitv:summary=Write a release's notes for its ISO: the download, the checksum and how to check it
 # origaitv:args=block <iso.sha256> <url> | into <iso.sha256> <url> <notes> | candidate <iso.sha256> <url>
 
-# The ISO lives in origaiTV's bucket, and the release's own page here is
+# The ISO lives in OrigaiTV's bucket, and the release's own page here is
 # where people find it. So once an ISO is published, its release's notes
 # get the download link, the checksum, and the lines that check a download
-# against origaiTV's key. The checksum on that page is a second place for it,
+# against OrigaiTV's key. The checksum on that page is a second place for it,
 # one the bucket's keys can't change.
 #
 #   block <iso.sha256> <url>
@@ -45,7 +45,7 @@ mode=$1 sum=$2 url=$3
 read -r hash file <"$sum"
 file=${file#\*}
 if [[ ! $hash =~ ^[0-9a-f]{64}$ || ! $file =~ ^origaitv-[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*-x86_64\.iso$ ]]; then
-  echo "origaitv-iso-notes: $sum isn't an origaiTV ISO's checksum" >&2
+  echo "origaitv-iso-notes: $sum isn't an OrigaiTV ISO's checksum" >&2
   exit 1
 fi
 if [[ ! $url =~ ^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._-]+)*/$file$ ]]; then
@@ -118,7 +118,7 @@ case $mode in
     (( $# == 3 )) || usage
     [[ $version =~ ^([0-9]+\.[0-9]+\.[0-9]+)-rc[0-9]+$ ]] || { echo "origaitv-iso-notes: $version isn't a release candidate's version" >&2; exit 1; }
     release=${BASH_REMATCH[1]}
-    echo "origaiTV $version's installer, powered by Omarchy. It's a release candidate: what $release will be, unless trying it at home turns something up."
+    echo "OrigaiTV $version's installer, powered by Omarchy. It's a release candidate: what $release will be, unless trying it at home turns something up."
     echo
     echo "A TV installed from it gets every new build as it's made, not only the releases. To move it to the releases, run \`origaitv channel stable\` on it, and then \`origaitv update\`."
     echo

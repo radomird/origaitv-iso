@@ -35,7 +35,7 @@ GUEST_USER=origaitv
 log "Booting the USB stick onto a blank disk, with no Wi-Fi card"
 boot_stick t1.4
 wait_for_live_root_ssh 300 || { stop_vm; finish; }
-check "origaiTV's first screen comes up (OCR)" wait_for_screen "of 12" 300
+check "OrigaiTV's first screen comes up (OCR)" wait_for_screen "of 12" 300
 
 phone_json() {
   ssh_live_root "cat /run/origaitv-first-screen/phone.json" 2>/dev/null || echo '{}'
@@ -73,7 +73,7 @@ home_first() {
 check "F11 the home network gets no disk list without the token" \
   jq -e '.ok == false and (has("disks") | not)' <<<"$(home_first "")"
 check "F11 and the phone with the token from the code gets it" \
-  jq -e '.step == 1 and (.disks | map(.path) | index("/dev/vda") != null)' <<<"$(home_first "-H 'X-origaiTV-Token: $token'")"
+  jq -e '.step == 1 and (.disks | map(.path) | index("/dev/vda") != null)' <<<"$(home_first "-H 'X-OrigaiTV-Token: $token'")"
 
 # A Wi-Fi card that can host a network: two simulated radios, the box's and
 # the phone's.
@@ -91,7 +91,7 @@ jq '.password = "(kept out of the log)"' "$RUN_DIR/phone-hotspot.json"
 ssid=$(jq -r '.ssid // empty' "$RUN_DIR/phone-hotspot.json")
 password=$(jq -r '.password // empty' "$RUN_DIR/phone-hotspot.json")
 device=$(jq -r '.device // empty' "$RUN_DIR/phone-hotspot.json")
-check "named origaiTV-, with a password" bash -c '[[ $1 =~ ^origaiTV-[0-9a-f]{4}$ && ${#2} == 10 ]]' _ "$ssid" "$password"
+check "named OrigaiTV-, with a password" bash -c '[[ $1 =~ ^OrigaiTV-[0-9a-f]{4}$ && ${#2} == 10 ]]' _ "$ssid" "$password"
 check "its code is the network's name and password" \
   jq -e --arg ssid "$ssid" --arg password "$password" '.qr == "WIFI:T:WPA;S:\($ssid);P:\($password);;"' "$RUN_DIR/phone-hotspot.json"
 access_point() {

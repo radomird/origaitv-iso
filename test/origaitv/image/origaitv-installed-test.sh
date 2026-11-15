@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# origaiTV's packages are on the installed box (ADR-025): the ISO's build put
+# OrigaiTV's packages are on the installed box (ADR-025): the ISO's build put
 # origaitv and origaitv-keyring in the root image beside Omarchy's own package,
-# pacman trusts origaiTV's key, and origaitv runs. Boots the base image that
+# pacman trusts OrigaiTV's key, and origaitv runs. Boots the base image that
 # upstream's test/integration left behind, like its own scenarios do.
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)/test/integration.d/base-test.sh"
@@ -28,14 +28,14 @@ has_key() {
     sleep 2
   done
 }
-check "pacman has origaiTV's key" has_key
+check "pacman has OrigaiTV's key" has_key
 # Trusted, not only there: the installer fills the box's keyring itself,
-# from a list that has to name origaiTV's keyring (customize.sh), and a key
+# from a list that has to name OrigaiTV's keyring (customize.sh), and a key
 # that isn't signed by the box's own master key fails every update.
 ssh_sudo "gpg --homedir /etc/pacman.d/gnupg --with-colons --list-keys $fingerprint" >"$RUN_DIR/origaitv-key.txt" 2>&1 || true
-check "pacman trusts origaiTV's key fully" \
+check "pacman trusts OrigaiTV's key fully" \
   test "$(awk -F: '$1 == "pub" { print $2; exit }' "$RUN_DIR/origaitv-key.txt")" = f -o "$(awk -F: '$1 == "pub" { print $2; exit }' "$RUN_DIR/origaitv-key.txt")" = u
-# origaiTV's keyring names origaiTV's key and no other. A pull request's run is
+# OrigaiTV's keyring names OrigaiTV's key and no other. A pull request's run is
 # the one exception: its packages are signed with a throwaway key made for
 # the run (origaitv-os's image.yml), and its own origaitv-keyring names that one
 # too. A box installed from a channel must never have a second key.
@@ -44,7 +44,7 @@ if [[ -n ${ORIGAITV_TEST_PACKAGE_KEY:-} ]]; then
   expected+=" $(gpg --batch --with-colons --show-keys "$ORIGAITV_TEST_PACKAGE_KEY" | awk -F: '$1 == "fpr" { print $10; exit }')"
 fi
 trusted=$(ssh_guest "cut -d: -f1 /usr/share/pacman/keyrings/origaitv-trusted | paste -sd' '" 2>/dev/null || true)
-check "origaiTV's keyring trusts the keys it should, and no other (it has: ${trusted:-none})" test "$trusted" = "$expected"
+check "OrigaiTV's keyring trusts the keys it should, and no other (it has: ${trusted:-none})" test "$trusted" = "$expected"
 check "origaitv runs" ssh_guest "origaitv version"
 # The box has the origaitv package the ISO was built with, and says so. A
 # release's ISO is named after its version (origaitv-1.0.0-x86_64.iso), so
@@ -64,14 +64,14 @@ if [[ ${#carried[@]} == 1 && -f ${carried[0]} ]]; then
 else
   log "The packages the ISO was built with aren't here, so the box's origaitv isn't compared with them"
 fi
-# origaiTV's repository takes its package list only with the signature. A box
+# OrigaiTV's repository takes its package list only with the signature. A box
 # straight from the ISO has no list yet, and one that has refreshed has both.
 # A list alone would make pacman refuse every install that doesn't refresh.
-check "origaiTV's package list is never on the box without its signature" \
+check "OrigaiTV's package list is never on the box without its signature" \
   ssh_guest "[[ ! -e /var/lib/pacman/sync/origaitv.db || -s /var/lib/pacman/sync/origaitv.db.sig ]]"
-check "pacman reads its package lists without an error about origaiTV's" \
+check "pacman reads its package lists without an error about OrigaiTV's" \
   ssh_guest "! pacman -Si origaitv 2>&1 | grep -qi 'signature\|not valid'"
-check "nothing of origaiTV's is in Omarchy's folder" \
+check "nothing of OrigaiTV's is in Omarchy's folder" \
   ssh_guest "! pacman -Ql origaitv | grep -q ' /usr/share/omarchy/'"
 
 ssh_guest "origaitv version; pacman -Q omarchy origaitv origaitv-keyring" >"$RUN_DIR/versions.txt" 2>&1 || true

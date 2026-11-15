@@ -96,11 +96,11 @@ for i in "${!APPS[@]}"; do
     entryPoints: {tvApp: "app.ts"},
     tv: {contract: 1, category: "streaming", runtime: "web", homeUrl: $home, capabilities: ["launch"], origins: [$origin], tiles: {s: "logo"}, childSafe: false}
   }' >"$work/repo/apps/$app/manifest.json"
-  printf '// A stand-in streaming app for origaiTV'"'"'s image check: it opens its site.\nexport default { id: "origaitv.check-%s", async launch(ctx) { await ctx.page?.goto("%s/%s/"); } };\n' "$app" "$SITE" "$app" >"$work/repo/apps/$app/app.ts"
+  printf '// A stand-in streaming app for OrigaiTV'"'"'s image check: it opens its site.\nexport default { id: "origaitv.check-%s", async launch(ctx) { await ctx.page?.goto("%s/%s/"); } };\n' "$app" "$SITE" "$app" >"$work/repo/apps/$app/app.ts"
   printf '<!doctype html>\n<title>%s</title>\n<link rel="icon" type="image/svg+xml" href="icon.svg">\n<h1>%s, a stand-in site</h1>\n' "${app^}" "${app^}" >"$work/sites/$app/index.html"
   printf '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="%s"/><text x="32" y="44" font-size="36" text-anchor="middle">%s</text></svg>\n' "${COLOURS[$i]}" "${app:0:1}" >"$work/sites/$app/icon.svg"
 done
-# The sites, served on the box by the Node that runs origaiTV's daemon.
+# The sites, served on the box by the Node that runs OrigaiTV's daemon.
 cat >"$work/sites/serve.mjs" <<'SERVE'
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
@@ -122,7 +122,7 @@ SERVE
 
 GNUPGHOME=$(mktemp -d /tmp/origaitv-gpg.XXXXXX)
 export GNUPGHOME
-gpg --batch --quiet --passphrase '' --quick-gen-key "origaiTV image check <check@origaitv.invalid>" ed25519 sign never
+gpg --batch --quiet --passphrase '' --quick-gen-key "OrigaiTV image check <check@origaitv.invalid>" ed25519 sign never
 gpg --batch --armor --export >"$work/keyring.asc"
 tar -C "$work" -czf "$work/check.tgz" repo sites keyring.asc
 ssh_guest "cat >/tmp/origaitv-check.tgz" <"$work/check.tgz"
@@ -131,7 +131,7 @@ ssh_guest "sudo ip netns add check-sites && sudo ip link add sites-box type veth
 ssh_sudo "systemd-run --unit origaitv-check-sites --property DynamicUser=yes --property NetworkNamespacePath=/run/netns/check-sites /usr/bin/node $CHECK/sites/serve.mjs $PORT $SITE_AT" >>"$RUN_DIR/check-setup.log" 2>&1 || true
 check "the stand-in sites answer on the box" ssh_guest "curl -fsS --max-time 5 --retry 5 --retry-connrefused $SITE/kite/ | grep -q 'a stand-in site'"
 
-ssh_sudo "git -C $CHECK/repo init -q && git -C $CHECK/repo add -A && git -C $CHECK/repo -c user.name='origaiTV image check' -c user.email=check@origaitv.invalid commit -qm 'Six stand-in streaming apps'" >>"$RUN_DIR/check-setup.log" 2>&1 || true
+ssh_sudo "git -C $CHECK/repo init -q && git -C $CHECK/repo add -A && git -C $CHECK/repo -c user.name='OrigaiTV image check' -c user.email=check@origaitv.invalid commit -qm 'Six stand-in streaming apps'" >>"$RUN_DIR/check-setup.log" 2>&1 || true
 commit=$(ssh_sudo "git -C $CHECK/repo rev-parse HEAD" 2>/dev/null | tr -d '\r' | tail -n 1)
 check "the stand-in apps' repo is on the box, at a commit ($commit)" test "${#commit}" = 40
 printf '%s\n' "${APPS[@]}" | jq -R . | jq -s --arg commit "$commit" --arg repo "file://$CHECK/repo" '{schema: 1, apps: map({

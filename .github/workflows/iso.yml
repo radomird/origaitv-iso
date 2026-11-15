@@ -1,15 +1,15 @@
 name: ISO
 
-# Builds origaiTV's ISO and installs it in a VM (ADR-019, layer 5). The ISO is
+# Builds OrigaiTV's ISO and installs it in a VM (ADR-019, layer 5). The ISO is
 # omarchy-iso's own build with Omarchy's own packages; the only addition is
-# origaiTV's signed packages, which configs/airootfs/root/customize_airootfs.sh
+# OrigaiTV's signed packages, which configs/airootfs/root/customize_airootfs.sh
 # adds to the offline mirror and the install (ADR-025). Then upstream's own
 # install test (an unattended install in QEMU with KVM and a boot of the
-# installed system), then origaiTV's image checks in test/origaitv/image/.
+# installed system), then OrigaiTV's image checks in test/origaitv/image/.
 #
 # It runs on pull requests that touch the build, once they're ready for
 # review (the gate job below says when), on release tags and by hand. A
-# merge to agentv doesn't rebuild it: the nightly run in origaitv-os builds the
+# merge to origaitv doesn't rebuild it: the nightly run in origaitv-os builds the
 # edge ISO every night, from this branch.
 #
 # A release tag is origaitv-v1.0.0, a candidate's origaitv-v1.0.0-rc1, and a 0.x
@@ -24,7 +24,7 @@ name: ISO
 # 2 GiB cap for release assets, so a tag or a run by hand keeps it as a
 # workflow artifact. This workflow has no keys and publishes nothing: when a
 # release tag's run passes, publish-iso.yml takes the ISO it kept, signs its
-# checksum and puts it in origaiTV's R2 bucket for people to download.
+# checksum and puts it in OrigaiTV's R2 bucket for people to download.
 
 on:
   push:
@@ -44,7 +44,7 @@ on:
   workflow_dispatch:
     inputs:
       channel:
-        description: "origaiTV package channel the ISO carries"
+        description: "OrigaiTV package channel the ISO carries"
         type: choice
         options: [edge, stable]
         default: edge
@@ -182,7 +182,7 @@ jobs:
           persist-credentials: false
 
       # A pushed tag is the only push that starts this workflow. It has to
-      # be one of origaiTV's release tags, and it says which packages the ISO
+      # be one of OrigaiTV's release tags, and it says which packages the ISO
       # carries: stable's for a release, edge's for a candidate. Every other
       # run carries the channel it was asked for, edge unless told. Only an
       # ISO that went through every check is kept: a release tag's always,
@@ -197,14 +197,14 @@ jobs:
           if [[ $GITHUB_EVENT_NAME == "push" ]]; then
             tag=$GITHUB_REF_NAME
             read -r kind version < <(bin/origaitv-iso-tag "$tag") || {
-              echo "::error::$tag isn't one of origaiTV's release tags, so no ISO is built for it. A release is origaitv-v1.0.0 and a candidate origaitv-v1.0.0-rc1."
+              echo "::error::$tag isn't one of OrigaiTV's release tags, so no ISO is built for it. A release is origaitv-v1.0.0 and a candidate origaitv-v1.0.0-rc1."
               exit 1
             }
             channel=edge
             [[ $kind != "stable" ]] || channel=stable
             keep=true
             echo "ISO_VERSION=$version" >>"$GITHUB_ENV"
-            echo "$tag is origaiTV $version, for the $kind channel. Its ISO carries the $channel packages." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "$tag is OrigaiTV $version, for the $kind channel. Its ISO carries the $channel packages." | tee -a "$GITHUB_STEP_SUMMARY"
           else
             channel=${ASKED:-edge}
             keep=${KEEP:-false}
@@ -230,7 +230,7 @@ jobs:
           fi
           (( $(avail) >= 40 )) || { echo "::error::only $(avail) GB free, the build and install test need about 40 GB"; exit 1; }
 
-      - name: Fetch origaiTV's signed packages
+      - name: Fetch OrigaiTV's signed packages
         env:
           ORIGAITV_OWNER: ${{ github.repository_owner }}
         run: |
@@ -249,7 +249,7 @@ jobs:
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      # Upstream's own build and install test, then origaiTV's checks against
+      # Upstream's own build and install test, then OrigaiTV's checks against
       # the base image it leaves behind (test/origaitv/image/ci).
       - name: Build, install, boot, check
         env:
@@ -277,7 +277,7 @@ jobs:
           {
             echo "## ISO"
             echo
-            echo "origaiTV packages: \`$CHANNEL\`. Build: $(cat test-runs/build-seconds 2>/dev/null || echo ?) s."
+            echo "OrigaiTV packages: \`$CHANNEL\`. Build: $(cat test-runs/build-seconds 2>/dev/null || echo ?) s."
             if [[ -n $base && -f $base/omarchy-install-timing.json ]]; then
               jq -r '"Install: \((.finished_at - .started_at) | round) s."' "$base/omarchy-install-timing.json"
             fi

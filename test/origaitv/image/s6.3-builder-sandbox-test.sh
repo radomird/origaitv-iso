@@ -175,7 +175,7 @@ check "S6.3 other services' private state isn't there to it" said no private
 check "S6.3 nor is the person's home" said no home
 check "the builder has no sudo" said no sudo
 check "the builder isn't in wheel" said no wheel
-check "the OS's files stay root's: origaiTV's own" said no usr
+check "the OS's files stay root's: OrigaiTV's own" said no usr
 check "the OS's files stay root's: /etc" said no etc
 check "the builder writes its own build's folder" said yes own
 check "the builder has no network of its own" said no internet
@@ -209,7 +209,7 @@ check "S6.10 and a setuid or setgid file the builder writes gives no one more ri
 # systemctl is-enabled doesn't count, so this asks whether it's waiting.
 check "ADR-044 the nightly package check is on" ssh_guest "systemctl is-active --quiet origaitv-npm-check.timer"
 check "ADR-043 the test TV's Chromium runs in the build's sandbox, with its own" said yes testtv-ready
-check "ADR-043 a small page app passes origaiTV's checks there" said yes testtv-checks
+check "ADR-043 a small page app passes OrigaiTV's checks there" said yes testtv-checks
 check "ADR-043 and the approval gets its screenshot" said yes testtv-shot
 check "the build's unit ended, and its ticket with it" ssh_guest "! systemctl is-active --quiet '$UNIT' && ! test -e /run/origaitv-build/ticket.json"
 

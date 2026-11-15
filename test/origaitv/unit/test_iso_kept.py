@@ -5,7 +5,7 @@ whether the ISO's name is the one that run was for, and that it's the only
 ISO the run has.
 
 A release tag is origaitv-v1.0.0, a candidate's origaitv-v1.0.0-rc1, and a 0.x
-release was v0.2.0. No other v tag is origaiTV's. A night's edge ISO goes by
+release was v0.2.0. No other v tag is OrigaiTV's. A night's edge ISO goes by
 its edge leg, not by the whole night.
 
 A stand-in for gh is first on PATH. It answers "gh api <path>" from a folder
@@ -93,10 +93,10 @@ class IsoKept(unittest.TestCase):
         kept = [f"origaitv-{version}-x86_64", f"origaitv-{version}-x86_64.sha256"] if kept is None else kept
         record = {"path": ".github/workflows/iso.yml", "event": "push", "head_branch": tag, "head_sha": TAG_COMMIT, **changes}
         self.a_run("origaitv-iso", 7, kept, **record)
-        self.answer(f"repos/{OWNER}/origaitv-iso/compare/{record['head_sha']}...agentv", {"status": on_origaitv})
+        self.answer(f"repos/{OWNER}/origaitv-iso/compare/{record['head_sha']}...origaitv", {"status": on_origaitv})
 
     def a_night(self, kept=("origaitv-0.2.0.r422.g155320d30-x86_64",), jobs=None, **changes):
-        record = {"path": ".github/workflows/nightly.yml", "event": "schedule", "head_branch": "agentv", "head_sha": NIGHT_COMMIT, **changes}
+        record = {"path": ".github/workflows/nightly.yml", "event": "schedule", "head_branch": "origaitv", "head_sha": NIGHT_COMMIT, **changes}
         self.a_run("origaitv-os", 9, list(kept), **record)
         answer = self.github / f"repos_{OWNER}_origaitv-os_actions_runs_9_jobs_filter=latest&per_page=100"
         if jobs is None:
@@ -156,12 +156,12 @@ class IsoKept(unittest.TestCase):
     def test_a_tag_on_a_commit_origaitv_doesnt_have_is_refused(self):
         for status in ("diverged", "behind"):
             self.a_tags_run(on_origaitv=status)
-            self.refused("which the agentv branch doesn't have", "stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
+            self.refused("which the origaitv branch doesn't have", "stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
 
     def test_no_answer_about_the_tags_commit_is_refused(self):
         self.a_tags_run()
-        (self.github / f"repos_{OWNER}_origaitv-iso_compare_{TAG_COMMIT}...agentv").unlink()
-        self.refused("Couldn't ask whether agentv has origaitv-v1.0.0's commit", "stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
+        (self.github / f"repos_{OWNER}_origaitv-iso_compare_{TAG_COMMIT}...origaitv").unlink()
+        self.refused("Couldn't ask whether origaitv has origaitv-v1.0.0's commit", "stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
 
     def test_a_run_started_by_hand_is_never_a_release(self):
         # On a tag too: it can build another ref than the one it runs on.
@@ -243,7 +243,7 @@ class IsoKept(unittest.TestCase):
         # Its record doesn't say which branch or commit it built.
         self.a_run(
             "origaitv-iso", 7, ["origaitv-edge-abc1234-x86_64"],
-            path=".github/workflows/iso.yml", event="workflow_dispatch", head_branch="agentv", head_sha=TAG_COMMIT,
+            path=".github/workflows/iso.yml", event="workflow_dispatch", head_branch="origaitv", head_sha=TAG_COMMIT,
         )
         self.refused("A run started by hand can build a branch that isn't merged", "edge", "origaitv-iso", 7, "origaitv-edge-abc1234-x86_64")
 
@@ -325,7 +325,7 @@ class IsoKept(unittest.TestCase):
         self.a_tags_run()
         self.passes("stable", "origaitv-iso", 7, "origaitv-1.0.0-x86_64")
         for call in self.log.read_text().splitlines():
-            self.assertRegex(call, r"^api repos/someone/origaitv-iso/(actions/runs/7(/artifacts\?per_page=100)?|compare/a{40}\.\.\.agentv)$")
+            self.assertRegex(call, r"^api repos/someone/origaitv-iso/(actions/runs/7(/artifacts\?per_page=100)?|compare/a{40}\.\.\.origaitv)$")
 
 
 def jobs():

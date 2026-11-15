@@ -3,7 +3,7 @@
 # The phone's d-pad in a web app made for a desktop, on an installed box
 # (ADR-008). A stand-in page with no arrow keys of its own and no focus
 # outline opens in the services' Chromium. A paired phone's arrows move the
-# focus along its row of tiles, with origaiTV's ring around it, OK presses one,
+# focus along its row of tiles, with OrigaiTV's ring around it, OK presses one,
 # OK on a link opens it, and Back goes back. Then a stand-in streaming
 # service's player, in the window and full screen: Back leaves it, and goes
 # on back from the title's page rather than into it again. The page's title
@@ -81,7 +81,7 @@ white=0
 if [[ -s $RUN_DIR/success-dpad-web-ring.png ]]; then
   white=$(magick "$RUN_DIR/success-dpad-web-ring.png" -fill black +opaque white -fill white -opaque white -format "%[fx:round(mean*w*h)]" info: 2>/dev/null || echo 0)
 fi
-check "origaiTV's ring shows around what has focus ($white white pixels)" test "${white:-0}" -gt 1000
+check "OrigaiTV's ring shows around what has focus ($white white pixels)" test "${white:-0}" -gt 1000
 
 press enter
 check "OK presses the tile (title: $(title))" wait_title "^picked 3$" 5

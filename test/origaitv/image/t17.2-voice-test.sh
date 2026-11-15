@@ -263,7 +263,7 @@ OLD
   voice >"$RUN_DIR/voice-old.json"
   check "the daemon sees the old voice" jq -e '.own == "ready" and .by == "own"' "$RUN_DIR/voice-old.json"
 
-  # The package has origaiTV's migrations in one folder.
+  # The package has OrigaiTV's migrations in one folder.
   migration=$(guest "grep -l 'The TV ships with no voice of its own now' /usr/share/origaitv/migrations/*.sh" 2>/dev/null | head -n 1 || true)
   check "the migration is on the box" test -n "$migration"
   guest "bash $migration" >"$RUN_DIR/migration.log" 2>&1 || true

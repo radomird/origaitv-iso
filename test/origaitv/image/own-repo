@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # For a pull request's image run (Q137): points the box's update check at
-# this run's own origaiTV packages instead of edge, and makes that the base
+# this run's own OrigaiTV packages instead of edge, and makes that the base
 # image every check starts from. Then getting ready, the daily check and
 # origaitv update on a check's box find the pull request's build, not whatever
 # edge has that hour, so the run tests the pull request, updates included.
@@ -41,7 +41,7 @@ log "The box has origaitv $installed; pointing its update check at this run's ow
 
 server="http://10.0.2.2:$ORIGAITV_TEST_OWN_REPO_PORT"
 ssh_sudo "install -d -m 755 /etc/origaitv && echo $server >/etc/origaitv/repository && origaitv-pacman-conf" >"$RUN_DIR/pacman-conf.log" 2>&1 || true
-check "pacman takes origaiTV from this run's own packages" \
+check "pacman takes OrigaiTV from this run's own packages" \
   ssh_guest "grep -A3 '^\[origaitv\]' /etc/pacman.conf | grep -qx 'Server = $server'"
 # The box reads the run's repository, its signature checked against
 # origaitv-keyring's key, and finds the build it has on it: nothing newer.

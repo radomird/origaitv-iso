@@ -1,6 +1,6 @@
 """bin/origaitv-iso-sign signs an ISO's checksum only with the key this repo
 pins, and the workflows give the signing key and the bucket's keys only to
-the jobs that need them. Throwaway keys stand in for origaiTV's."""
+the jobs that need them. Throwaway keys stand in for OrigaiTV's."""
 
 import os
 import re
@@ -143,7 +143,7 @@ class WhoGetsTheKeys(unittest.TestCase):
         asked = re.findall(r"workflows/nightly\.yml/runs\?(\S+?)\"", which)
         self.assertEqual(len(asked), 1)
         self.assertIn("event=schedule", asked[0].split("&"))
-        self.assertIn("branch=agentv", asked[0].split("&"))
+        self.assertIn("branch=origaitv", asked[0].split("&"))
 
     def test_the_morning_asks_whether_the_nights_leg_passed(self):
         # A night that failed or was cancelled can still have its ISO, when

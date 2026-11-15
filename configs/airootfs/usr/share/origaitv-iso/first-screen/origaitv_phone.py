@@ -1,7 +1,7 @@
-"""The phone's way through origaiTV's first screen on the USB stick.
+"""The phone's way through OrigaiTV's first screen on the USB stick.
 
 The first screen starts this in the background. It opens the live system's
-own Wi-Fi network, origaiTV-<4 characters>, the way the installed box opens its
+own Wi-Fi network, OrigaiTV-<4 characters>, the way the installed box opens its
 setup hotspot: an access point with a random password, addresses from
 dnsmasq, and every name pointing at the box, so a phone that joins opens the
 page on its own. The TV shows a QR code with the network's name and
@@ -179,7 +179,7 @@ class Hotspot:
         NETWORKD.write_text(f"[Match]\nName={device}\n\n[Link]\nUnmanaged=yes\n")
         run(["networkctl", "reload"])
 
-        self.ssid = "origaiTV-" + random_text("0123456789abcdef", 4)
+        self.ssid = "OrigaiTV-" + random_text("0123456789abcdef", 4)
         self.password = random_text("abcdefghjkmnpqrstuvwxyz23456789", 10)
         conf = RUN / "hotspot.conf"
         fd = os.open(conf, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -348,7 +348,7 @@ def make_handler(phone: Phone):
                 # The disks and the step are for the phone that scanned the
                 # TV's code: one on the hotspot, or one that has the token.
                 # Anything else on the home network gets no list.
-                if not self.on_hotspot() and not phone.check(self.headers.get("X-origaiTV-Token")):
+                if not self.on_hotspot() and not phone.check(self.headers.get("X-OrigaiTV-Token")):
                     self.json(403, {"ok": False, "error": "Scan the code on your TV to start"})
                     return
                 state = screen()

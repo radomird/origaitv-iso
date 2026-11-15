@@ -4,7 +4,7 @@
 # Omarchy's invitations to pick an agent and install Voxtype are marked as
 # offered, its keybinding and update notices are dismissed while its first
 # run is on, the idle lock never asks for a password, and origaitv update asks
-# origaiTV's own question. The TV runs in origaiTV's own session (ADR-031), so
+# OrigaiTV's own question. The TV runs in OrigaiTV's own session (ADR-031), so
 # Omarchy's terminal key opens nothing over it; s1.6-front-test.sh tries a
 # terminal opened over it anyway.
 
@@ -22,7 +22,7 @@ check "first boot marked Omarchy's agent, Voxtype and fingerprint invitations as
 log "Omarchy's first run is $(ssh_guest "test -f $done_dir/first-run-user && echo done || echo still on")"
 
 # The welcome page, then long enough for Omarchy's first run to send its
-# notices and for origaiTV to dismiss them.
+# notices and for OrigaiTV to dismiss them.
 for _ in $(seq 1 60); do
   ssh_guest "curl -fsS --max-time 3 http://127.0.0.1:3000/health | jq -e .welcome_shown >/dev/null" && break
   sleep 2
@@ -46,7 +46,7 @@ check "suspend is out of Omarchy's menu" ssh_guest "test -f .local/state/omarchy
 check "the TV is a Chromium kiosk app window" \
   ssh_guest "pgrep -af 'user-data-dir=/var/lib/origaitv/chromium-home' | grep -- '--kiosk' | grep -q -- '--app='"
 
-# Esc is origaiTV's back key (ADR-008): it must not take the TV out of full
+# Esc is OrigaiTV's back key (ADR-008): it must not take the TV out of full
 # screen, which would bring back Omarchy's bar with its clock and weekday.
 press esc
 sleep 3
@@ -63,12 +63,12 @@ check "Super+Return opens no terminal over the TV" ssh_guest "! pgrep -u \$(id -
 capture_console "tv-after-super-return"
 check "after Super+Return the TV is still the welcome page" ocr_finds screen-after-super-return "$WELCOME_TEXT" 15
 check "with no browser tabs or address bar" \
-  bash -c "! grep -Eq '127\.0\.0\.1|origaiTV setup' '$RUN_DIR/screen-after-super-return.txt'"
+  bash -c "! grep -Eq '127\.0\.0\.1|OrigaiTV setup' '$RUN_DIR/screen-after-super-return.txt'"
 
 ssh_guest "bash -lc 'origaitv-update-confirm' </dev/null" >"$RUN_DIR/update-question.txt" 2>&1 || true
 cat "$RUN_DIR/update-question.txt"
-check "origaitv update asks origaiTV's question, with origaiTV's version" grep -q "origaiTV [0-9]" "$RUN_DIR/update-question.txt"
-check "origaitv update points at origaiTV's release notes" grep -q "What's new: https://github.com/.*/origaitv-os/releases" "$RUN_DIR/update-question.txt"
+check "origaitv update asks OrigaiTV's question, with OrigaiTV's version" grep -q "OrigaiTV [0-9]" "$RUN_DIR/update-question.txt"
+check "origaitv update points at OrigaiTV's release notes" grep -q "What's new: https://github.com/.*/origaitv-os/releases" "$RUN_DIR/update-question.txt"
 check "nothing of Omarchy's update question is left" bash -c "! grep -qi 'omacom\|battery' '$RUN_DIR/update-question.txt'"
 
 stop_vm

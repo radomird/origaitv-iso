@@ -3,12 +3,12 @@
 # origaitv:summary=Say which of Omarchy's channels the ISO builds from
 # origaitv:args=
 
-# origaiTV's ISO follows omarchy-iso's branch for an Omarchy release
+# OrigaiTV's ISO follows omarchy-iso's branch for an Omarchy release
 # (.github/omarchy-release), and that installer wants that release's
 # packages. Omarchy tags a release before its stable channel serves it: rc
 # has it first, and stable gets it when Omarchy promotes rc. omarchy-iso's
 # own release ISO is built with --stable-from-rc in that window: rc's
-# packages, installed onto the stable channel. origaiTV's does the same.
+# packages, installed onto the stable channel. OrigaiTV's does the same.
 #
 # Prints the omarchy-iso-make flag to build with: nothing when stable serves
 # the release (or a newer one), --stable-from-rc when only rc has it. Fails

@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # One install for all of phase 1 (ADR-025): a box switched to edge with
-# origaitv channel edge takes edge's newest origaiTV with origaitv update, from the
+# origaitv channel edge takes edge's newest OrigaiTV with origaitv update, from the
 # real edge release, without waiting for the nightly run and without a
 # reinstall. That's how the NUC follows each stage.
 
@@ -26,7 +26,7 @@ log "Installed: origaitv $before, on $(ssh_guest "bash -lc 'origaitv channel'")"
 
 ssh_guest "bash -lc 'origaitv channel edge' </dev/null" >"$RUN_DIR/origaitv-channel.log" 2>&1 || true
 check "origaitv channel edge switches the box to edge" test "$(ssh_guest "bash -lc 'origaitv channel'")" = "edge"
-check "pacman takes origaiTV from the edge release" ssh_guest "grep -A3 '^\[origaitv\]' /etc/pacman.conf | grep -q '^Server = .*/edge$'"
+check "pacman takes OrigaiTV from the edge release" ssh_guest "grep -A3 '^\[origaitv\]' /etc/pacman.conf | grep -q '^Server = .*/edge$'"
 
 # Edge may be in the middle of being published again (repos.sh): wait until
 # the box reads it, so origaitv update's own sync finds it whole.
@@ -41,7 +41,7 @@ tail -n 20 "$RUN_DIR/origaitv-update.log"
 
 edge=$(ssh_guest "pacman -Sl origaitv" | awk '$2 == "origaitv" { print $3 }')
 after=$(ssh_guest "pacman -Q origaitv" | cut -d' ' -f2)
-check "edge doesn't wait for the nightly run" grep -q "^On edge: taking origaiTV's newest green build" "$RUN_DIR/origaitv-update.log"
+check "edge doesn't wait for the nightly run" grep -q "^On edge: taking OrigaiTV's newest green build" "$RUN_DIR/origaitv-update.log"
 check "Omarchy's update finished" bash -c "! grep -q 'Something went wrong during the update' '$RUN_DIR/origaitv-update.log'"
 # pacman keeps a newer local build, such as a pull request's, so at least.
 check "the box is on edge's newest origaitv or newer (was $before, now $after, edge has ${edge:-nothing})" \

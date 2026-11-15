@@ -3,7 +3,7 @@ description: >-
   Ubuntu packages a job needs that the runner image doesn't have, such as
   zbarimg for the QR code tests. They're kept in GitHub's cache, keyed on
   exactly what apt would fetch, so a run needs Ubuntu's mirror only when the
-  cache doesn't have them. The push runs on agentv save it, and pull
+  cache doesn't have them. The push runs on origaitv save it, and pull
   requests read it from there. origaitv-os has the same action.
 
 inputs:

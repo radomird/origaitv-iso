@@ -5,16 +5,16 @@
 # it by pacstrapping about 900 packages into btrfs with zstd at level 15
 # (builder/build-root-image.sh). That one step takes about 11 of a build's 18
 # minutes, and nearly all of it is Omarchy's packages, which change far less
-# often than origaiTV's own.
+# often than OrigaiTV's own.
 #
 # So, for one build only, in the working tree, this changes that step:
-#   1. pacstrap everything but origaiTV's own packages (the ones in
+#   1. pacstrap everything but OrigaiTV's own packages (the ones in
 #      configs/airootfs/usr/share/origaitv-iso/packages), unless release/
 #      root-cache/ holds that from an earlier build with the same key: the
 #      same packages at the same versions from the same mirror, built by the
 #      same scripts with the same tools. Then it comes back with btrfs
 #      receive, which writes the compressed data as it is, in about a minute.
-#   2. pacstrap the whole list again with --needed, which adds origaiTV's
+#   2. pacstrap the whole list again with --needed, which adds OrigaiTV's
 #      packages and anything only they need, the way the one pacstrap did.
 #   3. upstream's script carries on as before: hooks, the boot image, shrink
 #      and pack.
@@ -65,7 +65,7 @@ fi
   cat <<'HELPER'
 origaitv_root_cache=/out/root-cache
 
-# origaiTV's own packages, by name, from the files the build puts in its mirror.
+# OrigaiTV's own packages, by name, from the files the build puts in its mirror.
 origaitv_root_ours() {
   local file
   for file in /configs/airootfs/usr/share/origaitv-iso/packages/*.pkg.tar.zst; do
@@ -75,7 +75,7 @@ origaitv_root_ours() {
 
 # What goes into step 1, as one line of text: the packages asked for, every
 # package each repository in the config has with its version and checksum
-# (origaiTV's own left out), the scripts and the config that build it, and the
+# (OrigaiTV's own left out), the scripts and the config that build it, and the
 # tools they build it with.
 origaitv_root_key() {
   local conf=$1 ours=$2 repo="" server db
@@ -125,7 +125,7 @@ origaitv_pacstrap() {
     mv "$mnt/origaitv-base" "$root"
     echo "hit" >"$origaitv_root_cache/how"
   else
-    echo "[origaitv] Building Omarchy's part of the root image ($key): ${#base[@]} packages without origaiTV's own"
+    echo "[origaitv] Building Omarchy's part of the root image ($key): ${#base[@]} packages without OrigaiTV's own"
     pacstrap -C "$conf" -c -G -M "$root" "${base[@]}"
     rm -rf "$origaitv_root_cache"
     mkdir -p "$origaitv_root_cache"
@@ -137,7 +137,7 @@ origaitv_pacstrap() {
     echo "built" >"$origaitv_root_cache/how"
     du -h "$origaitv_root_cache/base.btrfs"
   fi
-  echo "[origaitv] Omarchy's part took $(( $(date +%s) - start )) s; now origaiTV's packages"
+  echo "[origaitv] Omarchy's part took $(( $(date +%s) - start )) s; now OrigaiTV's packages"
   pacstrap -C "$conf" -c -G -M "$root" --needed "$@"
 }
 HELPER

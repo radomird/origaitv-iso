@@ -1,6 +1,6 @@
-"""origaiTV's step in Omarchy's install: what the first screen hands over.
+"""OrigaiTV's step in Omarchy's install: what the first screen hands over.
 
-origaiTV's first screen on the USB stick leaves files for the installed box in
+OrigaiTV's first screen on the USB stick leaves files for the installed box in
 /root/origaitv-handover, laid out the way they go on the box: the account's
 marker, which says its password is one nobody knows yet. This copies them
 onto the new system, owned by root. With nothing there (an autoinstall, or
@@ -45,4 +45,4 @@ def origaitv_handover(ctx) -> None:
 
     written = hand_over(HANDOVER, Path(ctx.target))
     for path in written:
-        info(f"› origaiTV: /{path.relative_to(ctx.target)}")
+        info(f"› OrigaiTV: /{path.relative_to(ctx.target)}")

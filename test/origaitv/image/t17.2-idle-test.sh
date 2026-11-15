@@ -55,7 +55,7 @@ ssh_guest "sudo jq '. + {ambient: \"terminal\"}' $file | sudo tee $file.test >/d
 check "the box's settings say terminal, as before the update" ssh_sudo "jq -e '.ambient == \"terminal\" and .idleMinutes == 30' $file"
 check "T17.2 home never hears of the pick" test "$(settings | jq -r 'has("ambient")')" = "false"
 
-# The package has origaiTV's migrations in one folder.
+# The package has OrigaiTV's migrations in one folder.
 migration=$(guest "grep -l 'The terminal screensaver is gone' /usr/share/origaitv/migrations/*.sh" 2>/dev/null | head -n 1 || true)
 check "the migration is on the box" test -n "$migration"
 guest "bash $migration" >"$RUN_DIR/migration.log" 2>&1 || true

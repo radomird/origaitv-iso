@@ -56,7 +56,7 @@ check "getting ready settles, with the soundtrack still playing" \
   until_json /api/setup '(.setup.ready.update | IN("none", "done", "failed", "skipped")) and (.setup.muted | not)' 120
 
 # When getting ready found an update, which it does when edge has moved on
-# since the ISO was built, origaiTV's services restart on it. Getting ready
+# since the ISO was built, OrigaiTV's services restart on it. Getting ready
 # says done once the daemon answers on the new version, and the TV session
 # restarts after that, so its page goes and comes back with the soundtrack
 # starting again. Both recordings wait for the update to finish and the

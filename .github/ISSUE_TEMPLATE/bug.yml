@@ -27,7 +27,7 @@ body:
   - type: input
     id: release
     attributes:
-      label: origaiTV release
+      label: OrigaiTV release
       description: The number in the ISO's file name.
       placeholder: e.g. 1.0.0
     validations:

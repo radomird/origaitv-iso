@@ -1,6 +1,6 @@
 name: Publish ISO
 
-# Puts an ISO that passed its checks where people download it: origaiTV's
+# Puts an ISO that passed its checks where people download it: OrigaiTV's
 # Cloudflare R2 bucket, since the ISO is over GitHub's 2 GiB cap for release
 # files. The bucket holds one ISO for each channel, each named by its
 # version, such as origaitv-1.0.0-x86_64.iso (bin/origaitv-iso-publish):
@@ -10,7 +10,7 @@ name: Publish ISO
 #   edge    last night's build, from origaitv-os's nightly run
 #
 # bin/origaitv-iso-tag has the rule for tags: a 0.x release was v0.2.0, and
-# no other v tag is origaiTV's.
+# no other v tag is OrigaiTV's.
 #
 # Beside them, stable.json, rc.json and edge.json say which ISO each
 # channel is on. Those are the links that don't change. Publishing an ISO
@@ -35,17 +35,17 @@ name: Publish ISO
 # has written one. A release's notes get the same part added. The release
 # itself is written by hand.
 #
-# It always runs from the agentv branch, never from the tag or the branch
+# It always runs from the origaitv branch, never from the tag or the branch
 # that built the ISO, so the build never has the bucket's keys or the
 # signing key. Four jobs:
 #
 #   which    works out which ISO, with no secrets
 #   sum      fetches the ISO's checksum and checks it names a channel's ISO
-#   sign     has origaiTV's signing key and does nothing but sign that file
+#   sign     has OrigaiTV's signing key and does nothing but sign that file
 #   publish  has the bucket's keys: uploads, checks, and cleans up
 #
 # sign and publish read their secrets through the "release" environment,
-# which only agentv may use: AGENTV_SIGNING_KEY for sign, and
+# which only origaitv may use: AGENTV_SIGNING_KEY for sign, and
 # R2_ACCOUNT_ID, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY for publish. The
 # variables R2_BUCKET and ISO_URL say where the bucket is.
 
@@ -144,7 +144,7 @@ jobs:
               # Which channel and version the tag is, by the one rule for
               # tags (bin/origaitv-iso-tag).
               read -r channel version < <(bin/origaitv-iso-tag "$TAG" 2>/dev/null) ||
-                skip "Nothing is published: \`$TAG\` isn't one of origaiTV's release tags (origaitv-v1.0.0, or origaitv-v1.0.0-rc1 for a candidate)."
+                skip "Nothing is published: \`$TAG\` isn't one of OrigaiTV's release tags (origaitv-v1.0.0, or origaitv-v1.0.0-rc1 for a candidate)."
               repo=origaitv-iso
               run=$TAG_RUN
               name="origaitv-$version-x86_64"
@@ -157,7 +157,7 @@ jobs:
               # with an origaitv-iso branch that isn't merged.
               channel=edge
               repo=origaitv-os
-              run=$(gh api "repos/$OWNER/origaitv-os/actions/workflows/nightly.yml/runs?branch=agentv&event=schedule&status=completed&per_page=1" \
+              run=$(gh api "repos/$OWNER/origaitv-os/actions/workflows/nightly.yml/runs?branch=origaitv&event=schedule&status=completed&per_page=1" \
                 --jq '.workflow_runs[0].id // empty')
               [[ -n $run ]] || skip "Nothing is published: origaitv-os has no finished nightly run."
               name=$(gh api "repos/$OWNER/origaitv-os/actions/runs/$run/artifacts?per_page=100" --paginate \
@@ -203,7 +203,7 @@ jobs:
       # which repo and workflow made it, what started it and on what,
       # whether it passed, whether the ISO's name is the one that run was
       # for, and that it's the only ISO the run has. A release tag's commit
-      # has to be on agentv too. A scheduled night was asked about above, by
+      # has to be on origaitv too. A scheduled night was asked about above, by
       # its edge leg, and is asked here again with the rest. The script is
       # in the checkout this job starts with.
       - name: Check the run that kept it
@@ -449,7 +449,7 @@ jobs:
           if [[ -z $tag && $CHANNEL == "rc" ]]; then
             bin/origaitv-iso-notes candidate "$sum" "$URL" >"$RUNNER_TEMP/notes.md"
             gh release create "${tags[0]}" -R "$GITHUB_REPOSITORY" --verify-tag --prerelease \
-              --title "origaiTV $version installer" --notes-file "$RUNNER_TEMP/notes.md"
+              --title "OrigaiTV $version installer" --notes-file "$RUNNER_TEMP/notes.md"
             echo "Made the pre-release for ${tags[0]}, with the download link, the checksum and how to check a download." | tee -a "$GITHUB_STEP_SUMMARY"
             exit 0
           fi

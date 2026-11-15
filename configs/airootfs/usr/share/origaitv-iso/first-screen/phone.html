@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
-<title>origaiTV setup</title>
+<title>OrigaiTV setup</title>
 <style>
   :root {
     --bg: #1a1b26;
@@ -54,7 +54,7 @@
 <div class="steps" aria-label="Step 1 of 12"><span id="count">1 of 12</span></div>
 
 <main id="pick">
-  <h1>Install origaiTV on</h1>
+  <h1>Install OrigaiTV on</h1>
   <div class="disks" id="disks" role="group" aria-label="Disks"></div>
   <p class="warn" id="erase">Everything on it will be erased</p>
   <p class="error" id="error" role="alert"></p>
@@ -63,7 +63,7 @@
 <button class="go" id="go" disabled>Erase and install</button>
 
 <main id="installing" hidden>
-  <h1>Installing origaiTV</h1>
+  <h1>Installing OrigaiTV</h1>
   <p>Your TV restarts on its own. Keep this page open.</p>
 </main>
 
@@ -166,7 +166,7 @@
   // takes over.
   async function look() {
     try {
-      const response = await fetch("/api/first", { cache: "no-store", headers: TOKEN ? { "X-origaiTV-Token": TOKEN } : {} });
+      const response = await fetch("/api/first", { cache: "no-store", headers: TOKEN ? { "X-OrigaiTV-Token": TOKEN } : {} });
       if (response.status === 404 && installing) {
         location.replace("/");
         return;

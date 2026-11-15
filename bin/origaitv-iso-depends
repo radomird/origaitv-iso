@@ -1,17 +1,17 @@
 #!/bin/bash
 
-# origaitv:summary=Put origaiTV's packages in the ISO's offline mirror and root image, for one build
+# origaitv:summary=Put OrigaiTV's packages in the ISO's offline mirror and root image, for one build
 # origaitv:args=[--restore]
 
 # The installer installs a prebuilt root image, which omarchy-iso's build
 # (builder/build-iso.sh) makes from its offline mirror before mkarchiso runs,
-# and it records the mirror's checksums as it goes. So origaiTV's packages have
+# and it records the mirror's checksums as it goes. So OrigaiTV's packages have
 # to be there from the start, as a repository the build downloads from, and
 # on the list of what every install gets. Too late, and the box is installed
-# without origaiTV.
+# without OrigaiTV.
 #
 # For one build only, in the working tree:
-#   - origaiTV's packages, which bin/origaitv-iso-packages or a workflow put in
+#   - OrigaiTV's packages, which bin/origaitv-iso-packages or a workflow put in
 #     configs/airootfs/usr/share/origaitv-iso/packages, become a local
 #     repository, [origaitv-iso], indexed with repo-add in an Arch container;
 #   - each x86_64 configs/pacman-online-*.conf gets that repository, so the
@@ -23,7 +23,7 @@
 #
 # Their signatures were checked before they got here (origaitv-iso-packages),
 # or a workflow built and signed them itself, so the build's own pacman,
-# which doesn't know origaiTV's key, doesn't check them again.
+# which doesn't know OrigaiTV's key, doesn't check them again.
 
 set -euo pipefail
 
@@ -69,7 +69,7 @@ done
   ghcr.io/archlinux/archlinux:latest repo-add --quiet "/packages/$repo.db.tar.gz" "${names[@]}"
 
 for conf in "${confs[@]}"; do
-  printf '\n# origaiTV'\''s packages, for this build only (bin/origaitv-iso-depends).\n[%s]\nSigLevel = Never\nServer = %s\n' \
+  printf '\n# OrigaiTV'\''s packages, for this build only (bin/origaitv-iso-depends).\n[%s]\nSigLevel = Never\nServer = %s\n' \
     "$repo" "$server" >>"$conf"
 done
 

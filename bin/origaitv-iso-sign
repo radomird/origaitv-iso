@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# origaitv:summary=Sign an ISO's checksum file with origaiTV's key
+# origaitv:summary=Sign an ISO's checksum file with OrigaiTV's key
 # origaitv:args=<file> [<fingerprint-file>]
 
 # Signs <file>, an ISO's checksum file, and leaves the signature beside it as
 # <file>.sig. With it, someone who downloads the ISO can tell that the
-# checksum is origaiTV's and not just whatever the download site holds.
+# checksum is OrigaiTV's and not just whatever the download site holds.
 #
 # That's all it does: it needs gpg, and it fetches nothing, so the job that
 # has the key runs this and nothing else. The key comes in

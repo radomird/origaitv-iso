@@ -25,7 +25,7 @@ on:
       base:
         description: "Branch to sync (a rehearsal can use its own)"
         type: string
-        default: agentv
+        default: origaitv
 
 permissions:
   contents: write
@@ -60,7 +60,7 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.base || 'agentv' }}
+          ref: ${{ inputs.base || 'origaitv' }}
           fetch-depth: 0
           filter: blob:none
           token: ${{ secrets.SYNC_TOKEN }}
@@ -69,14 +69,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           TAG: ${{ inputs.tag }}
-          BASE: ${{ inputs.base || 'agentv' }}
+          BASE: ${{ inputs.base || 'origaitv' }}
         run: |
           args=(--base "$BASE")
           [[ -n $TAG ]] && args+=(--tag "$TAG")
           .github/scripts/omarchy-sync "${args[@]}"
           echo "sha=$(git rev-parse HEAD)" >>"$GITHUB_OUTPUT"
 
-      # The ISO carries origaiTV's current release, or edge until there is one.
+      # The ISO carries OrigaiTV's current release, or edge until there is one.
       - id: channel
         env:
           GH_TOKEN: ${{ github.token }}
@@ -149,7 +149,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: success()
         with:
-          ref: ${{ inputs.base || 'agentv' }}
+          ref: ${{ inputs.base || 'origaitv' }}
           persist-credentials: false
 
       - name: Switch off upstream's own workflows

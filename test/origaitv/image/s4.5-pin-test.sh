@@ -123,7 +123,7 @@ check "ADR-034 and home is there, with no pad (OCR)" says "success-pin-open" "$H
 # until the PIN.
 owner=$(ssh_guest "curl -fsS http://127.0.0.1:3000/api/viewers" 2>/dev/null | jq -r '.active // empty')
 grant=$(ssh_guest "curl -fsS -H 'Content-Type: application/json' -d '{\"pin\":\"4826\"}' http://127.0.0.1:3000/api/pin/check" 2>/dev/null | jq -r '.grant // empty')
-ssh_guest "curl -fsS -X PUT -H 'Content-Type: application/json' -H 'X-origaiTV-Grant: $grant' -d '{\"locked\":true}' http://127.0.0.1:3000/api/viewers/$owner" >"$RUN_DIR/lock-profile.json" 2>&1 || true
+ssh_guest "curl -fsS -X PUT -H 'Content-Type: application/json' -H 'X-OrigaiTV-Grant: $grant' -d '{\"locked\":true}' http://127.0.0.1:3000/api/viewers/$owner" >"$RUN_DIR/lock-profile.json" 2>&1 || true
 check "ADR-034 the owner's profile asks for the PIN to open" jq -e '.profile.locked == true' "$RUN_DIR/lock-profile.json"
 restart locked
 check "S4.5 after a restart the TV is locked" jq -e '.set == true and .locked == true' <<<"$(pin_status)"

@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# The owner's account is never handed root by origaiTV (H1): on an installed
-# box nothing of origaiTV's is in /etc/sudoers.d, first boot's splash left
+# The owner's account is never handed root by OrigaiTV (H1): on an installed
+# box nothing of OrigaiTV's is in /etc/sudoers.d, first boot's splash left
 # nothing there either, and sudo asks the owner for a password. A rule an
 # earlier version left behind, as after a power cut halfway through an
 # update, is gone after a restart. And polkit lets the owner's own account
@@ -29,10 +29,10 @@ if ! ssh_guest "test -x /usr/bin/origaitv-sudo-lend"; then
 fi
 
 ssh_sudo "ls -la /etc/sudoers.d" >"$RUN_DIR/sudoers.txt" 2>&1 || true
-check "H1 first boot left no sudo rule of origaiTV's in /etc/sudoers.d" \
+check "H1 first boot left no sudo rule of OrigaiTV's in /etc/sudoers.d" \
   ssh_sudo "! ls /etc/sudoers.d/99-origaitv-* 2>/dev/null | grep -q ."
 check "H1 sudo asks the owner for a password" ssh_guest "! sudo -n true"
-check "H1 nothing origaiTV installs writes a sudo rule" \
+check "H1 nothing OrigaiTV installs writes a sudo rule" \
   ssh_sudo "! grep -l NOPASSWD /usr/bin/origaitv-* /usr/share/origaitv/install/tv/*.sh 2>/dev/null | grep -q ."
 # The lent sudo is private as long as one process of the owner's can't trace
 # another: the kernel's ptrace_scope is 1 or more, as Arch ships it.

@@ -2,7 +2,7 @@
 #
 # S0.7, on a real box: once the nightly run has published tonight's signed
 # tested.json, the box fetches it from the address its own package names,
-# checks the signature with origaiTV's key, and takes an update of versions it
+# checks the signature with OrigaiTV's key, and takes an update of versions it
 # lists, but holds back one it doesn't. Runs when $ORIGAITV_TEST_TESTED_LIVE is
 # 1, after the publish.
 

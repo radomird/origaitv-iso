@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Shared by the image checks that sync from the real package repositories,
-# Omarchy's and origaiTV's edge release. Source it after upstream's
+# Omarchy's and OrigaiTV's edge release. Source it after upstream's
 # base-test.sh.
 #
 # Edge is published again each time origaitv-os or origaitv-pkgs merges, and
@@ -32,7 +32,7 @@ sync_repos() {
 
 # omarchy_channel <stable|rc|edge>: the box takes Omarchy's packages and its
 # Arch mirror from that channel, the lines omarchy-refresh-pacman would
-# write, without its full update, and origaiTV's own repository stays. For a
+# write, without its full update, and OrigaiTV's own repository stays. For a
 # run that tries the next Omarchy release before its stable channel has it.
 omarchy_channel() {
   local channel=$1

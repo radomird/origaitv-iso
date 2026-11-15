@@ -7,7 +7,7 @@
 #
 # The photo, made here, opens full screen with its credit and becomes the
 # background. The video comes while the stand-in app plays: it waits, and the
-# TV asks only once Home has paused the app, then plays it in origaiTV's player
+# TV asks only once Home has paused the app, then plays it in OrigaiTV's player
 # until Back. A link no installed app declares opens in the share browser,
 # Chromium on a profile of its own, never the services' one with the apps'
 # sign-ins, and Back closes it.
@@ -138,7 +138,7 @@ check "S5.10 and the TV doesn't ask over it" until_json /api/shared '.ask == nul
 guest "origaitv screen home" >>"$RUN_DIR/screen.log" 2>&1 || true
 check "S5.10 once nothing plays, the TV asks about the video (OCR)" asks success-S5.10-video-notice "video: clip.webm" 30
 key enter
-check "S5.10 Open plays it in origaiTV's player" until_tv '.front == "home" and .playing' 20
+check "S5.10 Open plays it in OrigaiTV's player" until_tv '.front == "home" and .playing' 20
 capture_console "success-S5.10-video"
 key back
 check "Back closes the player" until_tv '(.playing | not)' 15

@@ -9,7 +9,7 @@
 #
 # The update runs while the TV is on, so it's also S1.6's update: nothing it
 # does takes the screen from the TV (ADR-031). It ends by restarting
-# origaiTV's own services on the new origaitv (origaitv-restart), so home comes
+# OrigaiTV's own services on the new origaitv (origaitv-restart), so home comes
 # back on the new version, with no restart of the box unless it has a new
 # kernel or Omarchy's update says it needs one.
 
@@ -59,7 +59,7 @@ snapshots_before=$(snapshots)
 # OMARCHY_UPDATE_LOGGED skips Omarchy's script(1) wrapper, as upstream's test
 # does, so the update has no terminal: its questions, such as the reboot one,
 # report and move on instead of waiting for an answer.
-# A box from before origaiTV's package list needed its signature can hold the
+# A box from before OrigaiTV's package list needed its signature can hold the
 # list alone, which pacman now refuses. This one is put in that state, and
 # the update has to get through it and leave the list with its signature.
 # The list is dated long ago, as an old box's is. Dated now, pacman on a box
@@ -67,7 +67,7 @@ snapshots_before=$(snapshots)
 # anything newer, be told there's nothing, and keep the planted one.
 sync=/var/lib/pacman/sync
 ssh_sudo "[[ -e $sync/origaitv.db ]] || bsdtar -czf $sync/origaitv.db -T /dev/null; rm -f $sync/origaitv.db.sig; touch -d @0 $sync/origaitv.db" >"$RUN_DIR/planted-list.log" 2>&1 || true
-check "before the update, the box holds origaiTV's package list with no signature, dated long ago" \
+check "before the update, the box holds OrigaiTV's package list with no signature, dated long ago" \
   ssh_guest "[[ -e $sync/origaitv.db && ! -e $sync/origaitv.db.sig && \$(stat -c %Y $sync/origaitv.db) == 0 ]]"
 # Whether this box's origaitv removes such a list itself before an update. A
 # release from before that doesn't, and pacman fetches over the old list.
@@ -83,7 +83,7 @@ tail -n 30 "$RUN_DIR/origaitv-update.log"
 after=$(ssh_guest "pacman -Q origaitv" | cut -d' ' -f2)
 check "S0.5 origaitv update moved origaitv to $ORIGAITV_TEST_UPDATE_VERSION (was $before, now $after)" \
   test "$after" = "$ORIGAITV_TEST_UPDATE_VERSION"
-check "the update left origaiTV's package list with its signature, from a box that held the list alone" \
+check "the update left OrigaiTV's package list with its signature, from a box that held the list alone" \
   ssh_guest "[[ -s /var/lib/pacman/sync/origaitv.db && -s /var/lib/pacman/sync/origaitv.db.sig ]]"
 check "and pacman reads it without fetching again: it finds origaitv in it" ssh_guest "pacman -Si origaitv >/dev/null"
 # Which of the two got the box through: its own origaitv removing the list
@@ -99,19 +99,19 @@ check "S0.5 Omarchy's update took a snapshot first (snapshots: $snapshots_before
   test "$snapshots_after" -gt "$snapshots_before"
 check "S0.5 the snapshot is in the boot menu" \
   ssh_sudo "grep -qi snapshot /boot/limine.conf"
-check "origaiTV's migrations ran from Omarchy's post-update hook" \
-  grep -qE "origaiTV migration|No origaiTV migrations to run" "$RUN_DIR/origaitv-update.log"
+check "OrigaiTV's migrations ran from Omarchy's post-update hook" \
+  grep -qE "OrigaiTV migration|No OrigaiTV migrations to run" "$RUN_DIR/origaitv-update.log"
 
 if needs_restart; then
   # A new kernel came with Omarchy's packages, or its update set its flag.
-  log "This update needs a restart of the box, so origaiTV's services start again with it"
-  check "the update leaves origaiTV's services to the restart it needs" \
-    grep -q "origaiTV's services start again with the box" "$RUN_DIR/origaitv-update.log"
+  log "This update needs a restart of the box, so OrigaiTV's services start again with it"
+  check "the update leaves OrigaiTV's services to the restart it needs" \
+    grep -q "OrigaiTV's services start again with the box" "$RUN_DIR/origaitv-update.log"
   check "S1.6 after an update in place, the home screen is still in front" wait_tv 60
 else
-  check "the update restarted origaiTV's services" grep -q "Restarting origaiTV's services" "$RUN_DIR/origaitv-update.log"
+  check "the update restarted OrigaiTV's services" grep -q "Restarting OrigaiTV's services" "$RUN_DIR/origaitv-update.log"
   took=$(wait_running "$ORIGAITV_TEST_UPDATE_VERSION" 90) || took=""
-  check "S1.6 after an update in place, home is back in front, and origaiTV's daemon and screen daemon run origaitv $ORIGAITV_TEST_UPDATE_VERSION${took:+ (after $took s)}" \
+  check "S1.6 after an update in place, home is back in front, and OrigaiTV's daemon and screen daemon run origaitv $ORIGAITV_TEST_UPDATE_VERSION${took:+ (after $took s)}" \
     test -n "$took"
   health >"$RUN_DIR/health-after-update.json"
   cat "$RUN_DIR/health-after-update.json"

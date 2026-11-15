@@ -3,7 +3,7 @@
 # A box moves to the next Omarchy release the way a stable box will: first
 # the newer origaitv on the Omarchy it has, then Omarchy's own update, from
 # the TV. Then Restart and Shut down from the TV still work on the new
-# Omarchy. For origaiTV's move from Omarchy 4.0.6 to 4.5 that's a box
+# Omarchy. For OrigaiTV's move from Omarchy 4.0.6 to 4.5 that's a box
 # installed from 0.1.4's ISO, and it's where 4.5 used to break things: its
 # update takes away sudo grants named like its own, which the update from
 # the TV had, and Restart and Shut down went through commands 4.5 folded

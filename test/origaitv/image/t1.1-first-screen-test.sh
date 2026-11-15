@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# T1.1: the USB stick boots to origaiTV's own first screen, step 1 of 12, which
+# T1.1: the USB stick boots to OrigaiTV's own first screen, step 1 of 12, which
 # asks only which disk. One press of Enter installs on the disk it
 # highlights, with no question of Omarchy's on the screen from the boot to
 # the restart (OCR). The box restarts by itself and lands in TV setup's first
@@ -22,7 +22,7 @@ log "Booting the USB stick onto a blank disk"
 boot_stick t1.1
 wait_for_live_root_ssh 300 || { stop_vm; finish; }
 
-check "T1.1 the USB stick boots to origaiTV's first screen, step 1 of 12 (OCR)" wait_for_screen "of 12" 300
+check "T1.1 the USB stick boots to OrigaiTV's first screen, step 1 of 12 (OCR)" wait_for_screen "of 12" 300
 capture_console "success-T1.1-first-screen"
 
 # first_screen_read: the first screen, read three ways. ocr_screen's black

@@ -14,7 +14,7 @@
 #
 #   frames.py analyse --out <dir> --background <#rrggbb> --home <regex>
 #       Reads every kept frame after the firmware's and says what it is:
-#       origaiTV's splash (the logo alone, in the middle of the splash's
+#       OrigaiTV's splash (the logo alone, in the middle of the splash's
 #       background), the splash's background alone, black, white, Limine's
 #       menu, text, or home (OCR finds the regex). It prints the timeline,
 #       writes it to <dir>/timeline.json with a verdict for each rule, and
@@ -33,7 +33,7 @@ import subprocess
 import sys
 import time
 
-# origaiTV's logo, as branding/plymouth-logo.png draws it: "agen" and "tv".
+# OrigaiTV's logo, as branding/plymouth-logo.png draws it: "agen" and "tv".
 LOGO_COLOURS = ("#C0CAF5", "#7AA2F7")
 # What Limine's menu says when it shows: its help lines and its countdown.
 MENU_WORDS = re.compile(r"arrows\s+select|enter\s+boot|blank\s+entry|firmware\s+setup|booting\s+automatically", re.I)

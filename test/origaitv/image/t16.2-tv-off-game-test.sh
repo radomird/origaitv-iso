@@ -130,7 +130,7 @@ done
 ssh_sudo "record=/var/lib/origaitv/apps/installed.json; [[ -f \$record ]] || echo '{}' >\$record; jq --arg commit '$commit' --arg repo 'https://github.com/$owner/origaitv-apps' '. + {\"origaitv.steam\": {id: \"origaitv.steam\", name: \"Steam\", version: \"1.0.0\", tier: \"official\", repo: \$repo, commit: \$commit, path: \"apps/steam\", installedAt: (now | todate)}}' \$record >\$record.new && chmod 644 \$record.new && mv \$record.new \$record"
 ssh_guest "cat >/tmp/steam" <<'STEAM'
 #!/bin/bash
-# A stand-in for Steam in origaiTV's image checks: a full-screen window, drawn
+# A stand-in for Steam in OrigaiTV's image checks: a full-screen window, drawn
 # without a GPU, until /tmp/origaitv-steam-quit appears or it's stopped. mpv
 # draws it in shared memory; if that doesn't stay up, Chromium draws it.
 rm -f /tmp/origaitv-steam-quit

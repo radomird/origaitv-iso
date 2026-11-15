@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""origaiTV's first screen on the USB stick, step 1 of setup's 12.
+"""OrigaiTV's first screen on the USB stick, step 1 of setup's 12.
 
 It asks one thing: which disk. Enter erases it and installs. Underneath, it
 writes the same answers Omarchy's own configurator writes

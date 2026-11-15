@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-# origaiTV's sign-in screen (ADR-032, board 15) on an installed box: a stand-in
+# OrigaiTV's sign-in screen (ADR-032, board 15) on an installed box: a stand-in
 # app with signIn, for a sign-in page served on the box itself, says Sign in
 # until it's signed in. origaitv screen sign-in opens it the way its tile does:
-# the service's page maximized above origaiTV's bar in the overlay, which keeps
+# the service's page maximized above OrigaiTV's bar in the overlay, which keeps
 # the bottom of the screen and never the keyboard. The app takes its page to
 # the site's form, the virtual keyboard fills it in as the phone will, and
 # once the site's cookie says so, the app says it's signed in: the bar goes,

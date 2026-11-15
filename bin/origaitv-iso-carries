@@ -50,7 +50,7 @@ package=${found[0]}
 
 if [[ $channel == "stable" ]]; then
   [[ $package == "$version" ]] ||
-    stop "$tag is origaiTV $version, and the stable channel's package is origaitv $package. So this ISO would be called $version and install $package. Wait until origaitv-pkgs has published $version on stable, then run this again."
+    stop "$tag is OrigaiTV $version, and the stable channel's package is origaitv $package. So this ISO would be called $version and install $package. Wait until origaitv-pkgs has published $version on stable, then run this again."
   echo "The ISO for $tag carries origaitv $package, the release itself."
   exit 0
 fi

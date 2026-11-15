@@ -65,7 +65,7 @@ class Code(unittest.TestCase):
         self.assertEqual(origaitv_qr.format_bits(5), 0b100000011001110)
 
     def test_sizes(self):
-        self.assertEqual(len(origaitv_qr.matrix("WIFI:T:WPA;S:origaiTV-1a2b;P:abcdefghjk;;")), 29)
+        self.assertEqual(len(origaitv_qr.matrix("WIFI:T:WPA;S:OrigaiTV-1a2b;P:abcdefghjk;;")), 29)
         self.assertEqual(len(origaitv_qr.matrix("http://192.168.100.200/?t=" + "x" * 22)), 33)
         with self.assertRaises(origaitv_qr.TooLong):
             origaitv_qr.matrix("x" * 107)
@@ -73,7 +73,7 @@ class Code(unittest.TestCase):
     @unittest.skipUnless(shutil.which("zbarimg"), "needs zbarimg")
     def test_a_phone_reads_back_what_it_says(self):
         for text in (
-            "WIFI:T:WPA;S:origaiTV-1a2b;P:abcdefghjk;;",
+            "WIFI:T:WPA;S:OrigaiTV-1a2b;P:abcdefghjk;;",
             "http://192.168.100.200/?t=Kx3_aZ9-QwErTyUiOpAsDf",
             "a",
             "x" * 60,
@@ -87,7 +87,7 @@ class Code(unittest.TestCase):
         screen = sys.modules.get("origaitv_first_screen")
         if screen is None:
             from test_first_screen import screen  # noqa: PLC0415
-        text = "WIFI:T:WPA;S:origaiTV-1a2b;P:abcdefghjk;;"
+        text = "WIFI:T:WPA;S:OrigaiTV-1a2b;P:abcdefghjk;;"
         lines = [line.replace("\x1b[97m", "").replace("\x1b[0m", "") for line in screen.qr_lines(text)]
         modules = []
         for line in lines:
@@ -165,7 +165,7 @@ class Page(unittest.TestCase):
         self.assertEqual((status, location), (404, None))
         # With the token from the TV's code it still gets the disks.
         status, state = self.ask_json(
-            "GET", "/api/first", source="127.0.1.1", headers={"X-origaiTV-Token": self.phone.token}
+            "GET", "/api/first", source="127.0.1.1", headers={"X-OrigaiTV-Token": self.phone.token}
         )
         self.assertEqual(status, 200)
 
@@ -252,13 +252,13 @@ class Page(unittest.TestCase):
         self.assertNotIn("step", state)
         self.assertEqual(state["error"], "Scan the code on your TV to start")
         status, state = self.ask_json(
-            "GET", "/api/first", host="127.0.0.2", via="127.0.0.2", headers={"X-origaiTV-Token": "x" * 22}
+            "GET", "/api/first", host="127.0.0.2", via="127.0.0.2", headers={"X-OrigaiTV-Token": "x" * 22}
         )
         self.assertEqual(status, 403)
         self.assertNotIn("disks", state)
 
     def test_f11_the_phone_that_scanned_the_code_still_gets_them_there(self):
-        token = {"X-origaiTV-Token": self.phone.token}
+        token = {"X-OrigaiTV-Token": self.phone.token}
         status, state = self.ask_json("GET", "/api/first", host="127.0.0.2", via="127.0.0.2", headers=token)
         self.assertEqual(status, 200)
         self.assertEqual([d["name"] for d in state["disks"]], ["nvme0n1", "sda"])
@@ -273,9 +273,9 @@ class Page(unittest.TestCase):
         # for what it installs.
         page = (HERE / "phone.html").read_text()
         for words in (
-            "<h1>Install origaiTV on</h1>",
+            "<h1>Install OrigaiTV on</h1>",
             "Everything on it will be erased",
-            "<h1>Installing origaiTV</h1>",
+            "<h1>Installing OrigaiTV</h1>",
             "Your TV restarts on its own. Keep this page open.",
             "No disk found. Plug one in.",
             "Scan the code on your TV to start",
@@ -285,7 +285,7 @@ class Page(unittest.TestCase):
 
     def test_the_page_sends_its_token_when_it_asks_for_the_disks(self):
         page = (HERE / "phone.html").read_text()
-        self.assertIn('fetch("/api/first", { cache: "no-store", headers: TOKEN ? { "X-origaiTV-Token": TOKEN } : {} })', page)
+        self.assertIn('fetch("/api/first", { cache: "no-store", headers: TOKEN ? { "X-OrigaiTV-Token": TOKEN } : {} })', page)
 
     def test_erase_and_install_needs_the_token_and_works_once(self):
         ask = self.run_dir / "ask.json"

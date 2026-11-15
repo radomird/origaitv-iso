@@ -2,7 +2,7 @@
 #
 # S1.7 (ADR-032): signing in to a service in the services' Chromium shows
 # none of the browser's own prompts over the TV. A sign-in page in German,
-# with an address too, is filled in through origaiTV's virtual keyboard, as
+# with an address too, is filled in through OrigaiTV's virtual keyboard, as
 # the phone will, and sent. Then nothing of Chromium's shows: no Save
 # password, Save address or card, Translate or notification bubble. The
 # screen is read the way S1.1 reads notices, the top larger, and all of it.

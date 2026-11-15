@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Shared by the checks that boot the USB stick itself and install from
-# origaiTV's first screen on it (T1.1, T1.2). Source it after upstream's
+# OrigaiTV's first screen on it (T1.1, T1.2). Source it after upstream's
 # base-test.sh and tv.sh.
 #
 # Nobody types into the installed box, so these checks need a way in. A
@@ -15,7 +15,7 @@ if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
   exit 1
 fi
 
-# What only Omarchy's questions say, and never origaiTV's first screen, its
+# What only Omarchy's questions say, and never OrigaiTV's first screen, its
 # install's tips or TV setup. "password" isn't one: a tip says "No password
 # to type". OCR reads this console font's w as u at times, so no word here
 # depends on a w.

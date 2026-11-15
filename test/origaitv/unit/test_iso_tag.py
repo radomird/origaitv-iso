@@ -3,7 +3,7 @@
 bin/origaitv-iso-tag is the one place that says what a release tag is:
 origaitv-v1.0.0, origaitv-v1.0.0-rc1 for a candidate, and v0.2.0 for a 0.x
 release. origaitv-os carries Omarchy's own v1.1.0 to v4.5.0 tags, so no other
-v tag is origaiTV's, here either.
+v tag is OrigaiTV's, here either.
 
 bin/origaitv-iso-carries checks that the ISO built for a tag carries the
 package its name promises. bin/origaitv-iso-notes writes the release's notes.
@@ -247,7 +247,7 @@ class TheIsoWorkflow(unittest.TestCase):
             result, env = self.decide("push", tag)
             self.assertNotEqual(result.returncode, 0, tag)
             self.assertNotIn("KEEP_ISO", env)
-            self.assertIn("isn't one of origaiTV's release tags", result.stdout + result.stderr)
+            self.assertIn("isn't one of OrigaiTV's release tags", result.stdout + result.stderr)
 
     def test_a_run_by_hand_on_a_tag_isnt_a_release(self):
         # It can build another ref than the one it runs on.
@@ -267,7 +267,7 @@ class TheIsoWorkflow(unittest.TestCase):
         self.assertEqual(env["KEEP_ISO"], "false")
 
     def test_the_package_is_checked_against_the_tag_before_the_build(self):
-        fetch = self.text.index("- name: Fetch origaiTV's signed packages")
+        fetch = self.text.index("- name: Fetch OrigaiTV's signed packages")
         check = self.text.index("- name: The packages are the ones the tag stands for")
         build = self.text.index("- name: Build, install, boot, check")
         self.assertLess(fetch, check)
@@ -442,11 +442,11 @@ class TheNotes(unittest.TestCase):
 
     def test_the_part_goes_at_the_end_of_the_notes_as_written(self):
         written = self.work / "notes.md"
-        written.write_text("origaiTV 1.0.0, the first release.\n\nWhat's in it is on origaitv-os.\n\n\n")
+        written.write_text("OrigaiTV 1.0.0, the first release.\n\nWhat's in it is on origaitv-os.\n\n\n")
         result = self.notes("into", "origaitv-1.0.0-x86_64", written)
         self.assertEqual(result.returncode, 0, result.stderr)
         block = self.notes("block", "origaitv-1.0.0-x86_64").stdout
-        self.assertEqual(result.stdout, "origaiTV 1.0.0, the first release.\n\nWhat's in it is on origaitv-os.\n\n" + block)
+        self.assertEqual(result.stdout, "OrigaiTV 1.0.0, the first release.\n\nWhat's in it is on origaitv-os.\n\n" + block)
 
     def test_publishing_again_replaces_the_part_and_keeps_the_rest(self):
         written = self.work / "notes.md"
@@ -466,7 +466,7 @@ class TheNotes(unittest.TestCase):
 
     def test_the_two_lines_older_releases_had_are_replaced(self):
         written = self.work / "notes.md"
-        written.write_text("origaiTV 0.2.0's installer.\n\nDownload the ISO: [origaitv-stable.iso](https://old.example.invalid/origaitv-stable.iso)\n\nSHA-256 of the ISO: `" + "cd" * 32 + "`\n\n")
+        written.write_text("OrigaiTV 0.2.0's installer.\n\nDownload the ISO: [origaitv-stable.iso](https://old.example.invalid/origaitv-stable.iso)\n\nSHA-256 of the ISO: `" + "cd" * 32 + "`\n\n")
         result = self.notes("into", "origaitv-0.2.0-x86_64", written).stdout
         self.assertNotIn("origaitv-stable.iso", result)
         self.assertNotIn("cd" * 32, result)
@@ -476,7 +476,7 @@ class TheNotes(unittest.TestCase):
         result = self.notes("candidate", "origaitv-1.0.0-rc1-x86_64", ORIGAITV_RUN_URL="https://github.com/someone/origaitv-iso/actions/runs/7")
         self.assertEqual(result.returncode, 0, result.stderr)
         said = result.stdout
-        self.assertTrue(said.startswith("origaiTV 1.0.0-rc1's installer, powered by Omarchy. It's a release candidate: what 1.0.0 will be"))
+        self.assertTrue(said.startswith("OrigaiTV 1.0.0-rc1's installer, powered by Omarchy. It's a release candidate: what 1.0.0 will be"))
         self.assertIn("`origaitv channel stable`", said)
         self.assertIn("[This tag's run](https://github.com/someone/origaitv-iso/actions/runs/7)", said)
         self.assertTrue(said.endswith(self.notes("block", "origaitv-1.0.0-rc1-x86_64").stdout))

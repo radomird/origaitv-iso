@@ -10,9 +10,9 @@
 #   stable, rc  origaitv-iso's ISO workflow, started by the push of a release
 #               tag (origaitv-v1.0.0 for stable, origaitv-v1.0.0-rc1 for rc, and
 #               v0.2.0 for a 0.x release: bin/origaitv-iso-tag has the rule),
-#               with the tagged commit on the agentv branch, the whole run
+#               with the tagged commit on the origaitv branch, the whole run
 #               passed, and the ISO named after that tag's version
-#   edge        origaitv-os's Nightly workflow on the agentv branch, the ISO
+#   edge        origaitv-os's Nightly workflow on the origaitv branch, the ISO
 #               named the way edge's are, and the edge leg passed
 #               (bin/origaitv-iso-passed). The night as a whole can have
 #               failed: its stable leg is another matter. Started by the
@@ -38,7 +38,7 @@ set -euo pipefail
 (( $# == 4 )) || { echo "usage: origaitv-iso-kept <channel> <repo> <run-id> <name>" >&2; exit 2; }
 channel=$1 repo=$2 run=$3 name=$4
 owner="${GITHUB_REPOSITORY_OWNER:?}"
-BRANCH=agentv
+BRANCH=origaitv
 BIN=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 # origaitv-os's merge of the change that made a Nightly started by hand with
 # its own origaitv-iso ref keep no ISO (nightly.yml: keep-iso only when the
@@ -89,7 +89,7 @@ case $channel in
     [[ $name == "origaitv-$version-x86_64" ]] ||
       stop "Run $run built $ref, so its ISO is origaitv-$version-x86_64, not $name."
     # The tag's name isn't enough: the commit it was on has to be one the
-    # agentv branch has.
+    # origaitv branch has.
     reach=$(gh api "repos/$owner/$repo/compare/$commit...$BRANCH" | jq -r '.status // empty') ||
       stop "Couldn't ask whether $BRANCH has $ref's commit ($commit)."
     [[ $reach =~ ^(ahead|identical)$ ]] ||
