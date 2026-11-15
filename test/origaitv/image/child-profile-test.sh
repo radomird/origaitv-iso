@@ -103,9 +103,9 @@ check "and no profile is opened for an adult" test "$(visits)" = "0"
 check "an adult picks Kids for children" jq -e '.ok == true' <<<"$(api "-X PUT -d '{\"name\":\"Kids\"}' http://127.0.0.1:3000/api/apps/$id/child-profile")"
 api "-X PUT -d '{\"pin\":\"$PIN\"}' http://127.0.0.1:3000/api/pin" >"$RUN_DIR/pin.json"
 grant=$(api "-d '{\"pin\":\"$PIN\"}' http://127.0.0.1:3000/api/pin/check" | jq -r '.grant // empty')
-child=$(api "-H 'X-origaiTV-Grant: $grant' -d '{\"name\":\"mila\",\"role\":\"child\"}' http://127.0.0.1:3000/api/viewers" | jq -r '.profile.id // empty')
+child=$(api "-H 'X-OrigaiTV-Grant: $grant' -d '{\"name\":\"mila\",\"role\":\"child\"}' http://127.0.0.1:3000/api/viewers" | jq -r '.profile.id // empty')
 check "a child's profile is added" test -n "$child"
-api "-H 'X-origaiTV-Grant: $grant' -d '{\"allowed\":true}' http://127.0.0.1:3000/api/apps/$id/for-children" >"$RUN_DIR/for-children.json"
+api "-H 'X-OrigaiTV-Grant: $grant' -d '{\"allowed\":true}' http://127.0.0.1:3000/api/apps/$id/for-children" >"$RUN_DIR/for-children.json"
 check "and the app is ticked for children" jq -e '.ok == true' "$RUN_DIR/for-children.json"
 
 # A child starts watching with the app open: it opens the profile for
@@ -123,7 +123,7 @@ check "and never an adult's" test "$(visits radomir.html)" = "0"
 
 # Back to an adult: opening it leaves the service's profile as it is.
 guest "origaitv screen quit $id" >/dev/null 2>&1 || true
-api "-H 'X-origaiTV-Grant: $grant' -d '{\"id\":\"$GUEST_USER\"}' http://127.0.0.1:3000/api/viewer" >"$RUN_DIR/switch-adult.json"
+api "-H 'X-OrigaiTV-Grant: $grant' -d '{\"id\":\"$GUEST_USER\"}' http://127.0.0.1:3000/api/viewer" >"$RUN_DIR/switch-adult.json"
 sleep 2
 guest "origaitv screen app $id" >"$RUN_DIR/open-adult-again.json" 2>&1 || true
 sleep 15

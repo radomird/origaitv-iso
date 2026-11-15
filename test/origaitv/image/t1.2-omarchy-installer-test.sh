@@ -1,10 +1,10 @@
 #!/bin/bash
 #
-# T1.2: Ctrl+C on origaiTV's first screen gives Omarchy's own installer, every
+# T1.2: Ctrl+C on OrigaiTV's first screen gives Omarchy's own installer, every
 # question included, and an install through it lands in TV setup's first
 # screen, the way an install with Enter does. The answers here are the ones
 # a person would give: the account the harness always uses, its password,
-# and Enter for everything else (origaiTV's box name, no encryption).
+# and Enter for everything else (OrigaiTV's box name, no encryption).
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)/test/integration.d/base-test.sh"
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/tv.sh"
@@ -16,10 +16,10 @@ log "Booting the USB stick onto a blank disk"
 boot_stick t1.2
 wait_for_live_root_ssh 300 || { stop_vm; finish; }
 
-check "origaiTV's first screen comes up (OCR)" wait_for_screen "of 12" 300
+check "OrigaiTV's first screen comes up (OCR)" wait_for_screen "of 12" 300
 capture_console "success-T1.2-first-screen"
 press ctrl-c
-# Omarchy's greeter, under origaiTV's logo and tagline. Its "Press Return"
+# Omarchy's greeter, under OrigaiTV's logo and tagline. Its "Press Return"
 # line is too dim for OCR, so the tagline it shows is what's looked for.
 check "T1.2 Ctrl+C on it gives Omarchy's own installer (OCR)" wait_for_screen "agentic TV" 60
 capture_console "success-T1.2-omarchy-greeter"
@@ -77,9 +77,9 @@ check "T1.2 the install from it finished, and the box restarted" test "$installe
 (( installed )) || { keep_install_logs; stop_vm; finish; }
 
 check "the account is the one typed in" ssh_guest "test \"\$(id -un)\" = $GUEST_USER"
-check "Enter at the box's name gave it origaiTV's" test "$(ssh_guest hostname 2>/dev/null)" = origaitv
+check "Enter at the box's name gave it OrigaiTV's" test "$(ssh_guest hostname 2>/dev/null)" = origaitv
 check "the disk isn't encrypted, Enter at the overwrite" ssh_guest "! lsblk -no TYPE | grep -qx crypt"
-check "origaiTV's first screen handed nothing over" ssh_guest "! test -e /var/lib/origaitv/account.json"
+check "OrigaiTV's first screen handed nothing over" ssh_guest "! test -e /var/lib/origaitv/account.json"
 check "T1.2 TV setup's first screen is on the TV (daemon /health)" tv_setup_on_screen
 capture_console "success-T1.2-tv-setup"
 

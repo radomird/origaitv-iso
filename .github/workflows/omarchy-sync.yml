@@ -76,7 +76,7 @@ jobs:
           .github/scripts/omarchy-sync "${args[@]}"
           echo "sha=$(git rev-parse HEAD)" >>"$GITHUB_OUTPUT"
 
-      # The ISO carries origaiTV's current release, or edge until there is one.
+      # The ISO carries OrigaiTV's current release, or edge until there is one.
       - id: channel
         env:
           GH_TOKEN: ${{ github.token }}

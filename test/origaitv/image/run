@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Runs origaiTV's image checks (ADR-019, layer 5) against the base image that
+# Runs OrigaiTV's image checks (ADR-019, layer 5) against the base image that
 # upstream's ./test/integration <iso> made: every *-test.sh here, or the ones
 # named, each in its own VM, even after one fails.
 #
@@ -146,7 +146,7 @@ fi
 
 mapfile -t failed <"$work/failed"
 if (( ${#failed[@]} > 0 )); then
-  printf '\n%d origaiTV image check(s) failed:\n' "${#failed[@]}" >&2
+  printf '\n%d OrigaiTV image check(s) failed:\n' "${#failed[@]}" >&2
   printf '  %s\n' "${failed[@]}" >&2
   exit 1
 fi

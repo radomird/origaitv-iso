@@ -3,7 +3,7 @@
 # Updates from the TV (ADR-025, S2.12): Settings → Updates' Check now finds the
 # newer origaitv the image run hands over, and Install now installs it, with the
 # TV's Updating screen on while it runs, then home again on the new release.
-# The update ends by restarting origaiTV's own services (origaitv-restart), so
+# The update ends by restarting OrigaiTV's own services (origaitv-restart), so
 # the daemon, the screen daemon and home run the new origaitv with no restart
 # of the box, unless it has a new kernel or Omarchy's update says it needs one.
 # Both go through the TV's screen daemon, as the launcher's buttons do
@@ -73,7 +73,7 @@ cat >"$dir/manifest.json" <<'JSON'
   "version": "1.0.0",
   "author": "me",
   "license": "MIT",
-  "description": "A clock made on this box, for origaiTV's image checks",
+  "description": "A clock made on this box, for OrigaiTV's image checks",
   "kinds": ["tv-app"],
   "entryPoints": { "tvApp": "app.ts" },
   "tv": {
@@ -132,7 +132,7 @@ ocr_screen >"$RUN_DIR/success-update-tv-updating.txt" 2>/dev/null || true
 capture_console "success-update-tv-updating"
 check "S2.12 the TV shows the Updating screen (OCR)" grep -qiE "updating (to )?origaitv" "$RUN_DIR/success-update-tv-updating.txt"
 
-# While it runs, the owner has no more sudo than before: no rule of origaiTV's
+# While it runs, the owner has no more sudo than before: no rule of OrigaiTV's
 # in /etc/sudoers.d at any moment, and sudo still asks the owner for a
 # password. Looked at every few seconds until the update is done. A box that
 # stops answering, as one that restarts does, isn't taken for either.
@@ -143,7 +143,7 @@ started=$SECONDS
 while (( SECONDS - started < 2400 )); do
   state=$(ssh_guest "cat /var/lib/origaitv/update/progress.json 2>/dev/null" | jq -r .state 2>/dev/null) || state=""
   [[ $state == "running" ]] || break
-  # One line a look: the rules of origaiTV's there are, then whether sudo let
+  # One line a look: the rules of OrigaiTV's there are, then whether sudo let
   # the owner through without a password.
   if seen=$(ssh_guest "ls /etc/sudoers.d 2>/dev/null | grep -c '^99-origaitv-' ; if sudo -n true 2>/dev/null; then echo open; else echo asks; fi" 2>/dev/null | paste -sd' ' -) && [[ -n $seen ]]; then
     echo "$seen" >>"$RUN_DIR/sudo-during-update.txt"
@@ -157,7 +157,7 @@ done
 if [[ $lends == "yes" ]]; then
   check "the update ran long enough to look at sudo while it did ($looks looks)" test "$looks" -ge 3
   # shellcheck disable=SC2016 # the single quotes hold the command bash runs
-  check "H1 no sudo rule of origaiTV's is in /etc/sudoers.d at any point of an update from the TV" \
+  check "H1 no sudo rule of OrigaiTV's is in /etc/sudoers.d at any point of an update from the TV" \
     bash -c '! grep -qv "^0 " "$1"' _ "$RUN_DIR/sudo-during-update.txt"
   # shellcheck disable=SC2016
   check "H1 sudo asks the owner for a password all through an update from the TV" \
@@ -181,7 +181,7 @@ if [[ $(jq -r .state "$RUN_DIR/progress.json") == "restarting" ]]; then
   check "the box restarted because it had to: a new kernel (was $kernel, now $(ssh_guest "uname -r")) or Omarchy's flag" had_to
 else
   took=$(wait_running "$ORIGAITV_TEST_UPDATE_VERSION" 90) || took=""
-  check "after an update from the TV, home is back in front, and origaiTV's daemon and screen daemon run origaitv $ORIGAITV_TEST_UPDATE_VERSION${took:+ (after $took s)}" \
+  check "after an update from the TV, home is back in front, and OrigaiTV's daemon and screen daemon run origaitv $ORIGAITV_TEST_UPDATE_VERSION${took:+ (after $took s)}" \
     test -n "$took"
   [[ -n $took ]] || { health; screen_status; } >"$RUN_DIR/running.json" 2>&1
   check "and the box didn't restart" test "$(ssh_guest "cat /proc/sys/kernel/random/boot_id")" = "$boot_id"
@@ -189,14 +189,14 @@ fi
 
 after=$(ssh_guest "pacman -Q origaitv" | cut -d' ' -f2)
 check "S2.12 the box is on origaitv $ORIGAITV_TEST_UPDATE_VERSION (was $before, now $after)" test "$after" = "$ORIGAITV_TEST_UPDATE_VERSION"
-# Nothing of origaiTV's (99-origaitv-update-<owner>, which earlier versions
+# Nothing of OrigaiTV's (99-origaitv-update-<owner>, which earlier versions
 # wrote for the update) or named like Omarchy's own grant, which the ones
 # before those used.
 check "no sudo rule is left after an update from the TV" \
   ssh_sudo "! ls /etc/sudoers.d/99-origaitv-* /etc/sudoers.d/99-omarchy-nopasswd-* 2>/dev/null | grep -q ."
 check "and sudo still asks the owner for a password" ssh_guest "! sudo -n true"
-check "origaiTV's migrations ran in the update from the TV" \
-  ssh_guest "grep -qE 'origaiTV migration|No origaiTV migrations to run' /var/lib/origaitv/update/update.log"
+check "OrigaiTV's migrations ran in the update from the TV" \
+  ssh_guest "grep -qE 'OrigaiTV migration|No OrigaiTV migrations to run' /var/lib/origaitv/update/update.log"
 # Omarchy's update ends by restarting its shell in the session that's
 # running; the TV session stops it again.
 check "after an update from the TV, Omarchy's shell isn't on the TV: no bar, no process (ADR-031)" no_omarchy_shell 30

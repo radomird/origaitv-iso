@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# origaitv:summary=Give the ISO origaiTV's name, volume label, boot menu and build step, for one build
+# origaitv:summary=Give the ISO OrigaiTV's name, volume label, boot menu and build step, for one build
 # origaitv:args=[--restore]
 
 # ADR-027: the ISO's file name, volume label, metadata and boot menu entries
-# say origaiTV. They live in omarchy-iso's own files, which this repo never
+# say OrigaiTV. They live in omarchy-iso's own files, which this repo never
 # edits, so this changes them in the working tree for one build only:
 # test/origaitv/image/ci runs it right before omarchy-iso-make, and --restore
 # puts upstream's versions back from git afterwards. File names, kernel
@@ -13,8 +13,8 @@
 # upstream change shows up as a red build, not as an ISO that quietly says
 # Omarchy again.
 #
-# It also hands the live system's build step to origaiTV's own customize.sh,
-# which puts origaiTV's logo, tagline and words in the installer. archiso runs
+# It also hands the live system's build step to OrigaiTV's own customize.sh,
+# which puts OrigaiTV's logo, tagline and words in the installer. archiso runs
 # only /root/customize_airootfs.sh, which is omarchy-iso's, so one line goes
 # in near its top, right after set -euo pipefail, the way omarchy-iso's own
 # build adds its Snapdragon step: further down, the script can end early.
@@ -61,29 +61,29 @@ change() {
   rm -f "$before"
 }
 
-# The publisher names where origaiTV lives, from the owner CI passes in.
-publisher="origaiTV"
-[[ -n ${ORIGAITV_OWNER:-} ]] && publisher="origaiTV <https://github.com/$ORIGAITV_OWNER/origaitv-os>"
+# The publisher names where OrigaiTV lives, from the owner CI passes in.
+publisher="OrigaiTV"
+[[ -n ${ORIGAITV_OWNER:-} ]] && publisher="OrigaiTV <https://github.com/$ORIGAITV_OWNER/origaitv-os>"
 export ORIGAITV_PUBLISHER="$publisher"
 
 change "$profile" 's/^iso_name="omarchy"$/iso_name="origaitv"/'
 change "$profile" 's/^iso_label="OMARCHY_/iso_label="ORIGAITV_/'
 # shellcheck disable=SC2016 # $ENV{...} is perl's, read from the environment
 change "$profile" 's/^iso_publisher=.*$/iso_publisher="$ENV{ORIGAITV_PUBLISHER}"/'
-change "$profile" 's/^iso_application="Omarchy Installer"$/iso_application="origaiTV installer, powered by Omarchy"/'
+change "$profile" 's/^iso_application="Omarchy Installer"$/iso_application="OrigaiTV installer, powered by Omarchy"/'
 
 # Only the capitalised word: paths and kernel options say omarchy.
 for menu in "${menus[@]}"; do
-  change "$menu" 's/\bOmarchy\b/origaiTV/g'
+  change "$menu" 's/\bOmarchy\b/OrigaiTV/g'
 done
 
 # Whatever stops customize.sh stops the build: the line runs under upstream's
 # set -euo pipefail, and archiso fails the build on the script's exit status.
 # shellcheck disable=SC2016 # the single quotes hold perl
-change "$customize" 's/^set -euo pipefail$/set -euo pipefail\n\n# origaiTV'"'"'s installer, for this build only (bin\/origaitv-iso-brand).\nbash \/usr\/share\/origaitv-iso\/customize.sh\nrm -rf \/usr\/share\/origaitv-iso/'
+change "$customize" 's/^set -euo pipefail$/set -euo pipefail\n\n# OrigaiTV'"'"'s installer, for this build only (bin\/origaitv-iso-brand).\nbash \/usr\/share\/origaitv-iso\/customize.sh\nrm -rf \/usr\/share\/origaitv-iso/'
 if (( $(grep -c '^bash /usr/share/origaitv-iso/customize.sh$' "$customize") != 1 )); then
-  echo "origaitv-iso-brand: origaiTV's build step isn't in $customize exactly once" >&2
+  echo "origaitv-iso-brand: OrigaiTV's build step isn't in $customize exactly once" >&2
   exit 1
 fi
 
-echo "origaitv-iso-brand: this build's ISO is named, labelled and menued origaiTV, and runs origaiTV's build step"
+echo "origaitv-iso-brand: this build's ISO is named, labelled and menued OrigaiTV, and runs OrigaiTV's build step"

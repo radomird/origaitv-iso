@@ -34,7 +34,7 @@ wait_home 60 >/dev/null || true
 # on this throwaway box only (s3.5-steam-test.sh says why each is one).
 ssh_guest "cat >/tmp/steam" <<'STEAM'
 #!/bin/bash
-# A stand-in for Steam in origaiTV's image checks: a full-screen window, drawn
+# A stand-in for Steam in OrigaiTV's image checks: a full-screen window, drawn
 # without a GPU, until /tmp/origaitv-steam-quit appears, as Exit Steam does.
 # mpv draws it in shared memory; if that doesn't stay up, Chromium draws it
 # instead.
@@ -54,7 +54,7 @@ exit 0
 STEAM
 ssh_guest "cat >/tmp/gamescope" <<'GAMESCOPE'
 #!/bin/bash
-# A stand-in for gamescope in origaiTV's image checks, which have no GPU: it
+# A stand-in for gamescope in OrigaiTV's image checks, which have no GPU: it
 # runs what comes after --, and it ends when that does, as gamescope does.
 while (( $# > 0 )) && [[ $1 != "--" ]]; do shift; done
 shift
@@ -105,7 +105,7 @@ pad() {
 pad_device() {
   # shellcheck disable=SC2016 # expanded on the box
   ssh_guest 'for node in /sys/class/input/event*; do
-    [[ $(cat "$node/device/name" 2>/dev/null) == "origaiTV test gamepad" ]] || continue
+    [[ $(cat "$node/device/name" 2>/dev/null) == "OrigaiTV test gamepad" ]] || continue
     grep -qx "E:ID_INPUT_JOYSTICK=1" "/run/udev/data/c$(cat "$node/dev")" 2>/dev/null && echo "/dev/input/${node##*/}"
   done' 2>/dev/null | head -n 1 || true
 }

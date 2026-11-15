@@ -18,7 +18,7 @@ wait_for_ssh 300 failure-tested-ssh-timeout || exit 1
 
 ssh_guest "pacman -Q" >"$ORIGAITV_TEST_TESTED_OUT"
 check "the box lists its packages" test -s "$ORIGAITV_TEST_TESTED_OUT"
-check "the list has Omarchy's and origaiTV's packages" grep -qE '^(omarchy|origaitv) ' "$ORIGAITV_TEST_TESTED_OUT"
+check "the list has Omarchy's and OrigaiTV's packages" grep -qE '^(omarchy|origaitv) ' "$ORIGAITV_TEST_TESTED_OUT"
 
 stop_vm
 finish

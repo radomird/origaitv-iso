@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # TV setup's apps (board 09): the official apps for what the TV is for come
-# from origaiTV's signed index, and the one ticked on the TV installs as root,
+# from OrigaiTV's signed index, and the one ticked on the TV installs as root,
 # through origaitv-setup-apps.path, with `origaitv app install`, while setup
 # finishes and home takes over. Then home has it.
 #

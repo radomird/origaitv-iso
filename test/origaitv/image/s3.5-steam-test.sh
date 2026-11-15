@@ -115,7 +115,7 @@ fi
 # this throwaway box only.
 ssh_guest "cat >/tmp/steam" <<'STEAM'
 #!/bin/bash
-# A stand-in for Steam in origaiTV's S3.5 image check: a full-screen window,
+# A stand-in for Steam in OrigaiTV's S3.5 image check: a full-screen window,
 # drawn without a GPU, until /tmp/origaitv-steam-quit appears, as Exit Steam
 # does. mpv draws it in shared memory; if that doesn't stay up, Chromium
 # draws it instead.
@@ -135,7 +135,7 @@ exit 0
 STEAM
 ssh_guest "cat >/tmp/gamescope" <<'GAMESCOPE'
 #!/bin/bash
-# A stand-in for gamescope in origaiTV's S3.5 image check, which has no GPU:
+# A stand-in for gamescope in OrigaiTV's S3.5 image check, which has no GPU:
 # it notes how it was started and runs what comes after --, and it ends when
 # that does, as gamescope does.
 printf '%s\n' "$*" >/tmp/origaitv-gamescope-args

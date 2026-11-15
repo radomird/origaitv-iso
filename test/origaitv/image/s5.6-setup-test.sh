@@ -7,7 +7,7 @@
 # The box starts on the welcome screen. Enter carries on with the keyboard,
 # as the VM is online on its cable. At getting ready the screen daemon's
 # update check finds the newer origaitv this image run hands over, and the
-# TV's own install puts it on. origaiTV restarts on it, or the box does when
+# TV's own install puts it on. OrigaiTV restarts on it, or the box does when
 # the update needs that, and setup carries on from the new release to what
 # the TV is for. A restart there comes back to the same step, and Enter on
 # it finishes setup. With no newer origaitv, getting ready finds nothing to

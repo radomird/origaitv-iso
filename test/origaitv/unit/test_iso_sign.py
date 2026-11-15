@@ -1,6 +1,6 @@
 """bin/origaitv-iso-sign signs an ISO's checksum only with the key this repo
 pins, and the workflows give the signing key and the bucket's keys only to
-the jobs that need them. Throwaway keys stand in for origaiTV's."""
+the jobs that need them. Throwaway keys stand in for OrigaiTV's."""
 
 import os
 import re

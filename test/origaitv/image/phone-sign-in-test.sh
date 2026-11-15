@@ -2,7 +2,7 @@
 #
 # The phone companion's sign-in fields and arrange home on an installed box
 # (ADR-032, S4.4, S4.7, S4.9). A paired phone moves a tile on home, and the
-# daemon keeps it. Then a stand-in app with signIn opens origaiTV's sign-in
+# daemon keeps it. Then a stand-in app with signIn opens OrigaiTV's sign-in
 # screen: the daemon hears it from the screen daemon and offers the phone its
 # fields, and the email and password the phone sends are typed into the
 # service's own form on the TV, through the virtual input device. The form

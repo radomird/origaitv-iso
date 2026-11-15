@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# The home screen (stage 2): once setup is done, the TV shows origaiTV's
+# The home screen (stage 2): once setup is done, the TV shows OrigaiTV's
 # launcher, which the daemon serves, in the Omarchy theme's colours, with
 # the built-in weather on it (stage 3). The remote's keys move
 # around it, and setting up again brings the welcome page

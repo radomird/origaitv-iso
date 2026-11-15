@@ -1,4 +1,4 @@
-"""origaiTV's first screen on the USB stick, without a VM.
+"""OrigaiTV's first screen on the USB stick, without a VM.
 
 The answers it writes are checked against the ones Omarchy's own configurator
 writes for the same disk, from the configurator in this repo, so an Omarchy
@@ -53,10 +53,10 @@ DISKS = [
 ]
 HOTSPOT = {
     "mode": "hotspot",
-    "ssid": "origaiTV-1a2b",
+    "ssid": "OrigaiTV-1a2b",
     "password": "abcdefghjk",
     "device": "wlan0",
-    "qr": "WIFI:T:WPA;S:origaiTV-1a2b;P:abcdefghjk;;",
+    "qr": "WIFI:T:WPA;S:OrigaiTV-1a2b;P:abcdefghjk;;",
     "joined": False,
 }
 
@@ -239,7 +239,7 @@ class Drawing(unittest.TestCase):
 
     def test_a_console_too_small_for_the_code_says_it_in_words(self):
         text = plain(screen.render(DISKS, 0, 80, 25, HOTSPOT))
-        self.assertIn("or set it up from your phone: Wi-Fi origaiTV-1a2b, password abcdefghjk", text)
+        self.assertIn("or set it up from your phone: Wi-Fi OrigaiTV-1a2b, password abcdefghjk", text)
 
     def test_no_code_without_a_way_in(self):
         text = plain(screen.render(DISKS, 0, 160, 50, {"mode": "none", "qr": None}))
@@ -334,7 +334,7 @@ class Keys(unittest.TestCase):
         self.assertEqual(config["disk_config"]["device_modifications"][0]["device"], "/dev/sda")
         self.assertIn("\u203a sda", output)
         handed = json.loads((work / "origaitv-handover/etc/origaitv/hotspot.json").read_text())
-        self.assertEqual(handed, {"ssid": "origaiTV-1a2b", "password": "abcdefghjk"})
+        self.assertEqual(handed, {"ssid": "OrigaiTV-1a2b", "password": "abcdefghjk"})
         self.assertEqual((work / "origaitv-handover/etc/origaitv/hotspot.json").stat().st_mode & 0o777, 0o600)
 
     def test_a_disk_the_tv_doesnt_list_is_ignored(self):

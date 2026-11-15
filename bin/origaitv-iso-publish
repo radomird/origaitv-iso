@@ -3,7 +3,7 @@
 # origaitv:summary=Put an ISO where people download it, under its version's name
 # origaitv:args=names <channel> <iso.sha256> <dir> | upload <channel> <iso> <dir> | stale <channel> | clean <channel>
 
-# origaiTV's ISOs live in a Cloudflare R2 bucket, since an ISO is over GitHub's
+# OrigaiTV's ISOs live in a Cloudflare R2 bucket, since an ISO is over GitHub's
 # 2 GiB cap for release files. The bucket's iso/ folder holds one ISO for
 # each channel: the latest stable release, last night's edge build, and the
 # latest release candidate. Each ISO goes by its version, so the file you
@@ -11,7 +11,7 @@
 #
 #   iso/origaitv-<version>-x86_64.iso             the ISO
 #   iso/origaitv-<version>-x86_64.iso.sha256      its checksum, which names that file
-#   iso/origaitv-<version>-x86_64.iso.sha256.sig  the checksum, signed with origaiTV's key
+#   iso/origaitv-<version>-x86_64.iso.sha256.sig  the checksum, signed with OrigaiTV's key
 #   iso/<channel>.json                          which ISO the channel is on now
 #
 # A version says which channel it belongs to:
@@ -218,7 +218,7 @@ read_sum() {
   read -r hash file <"$sum"
   file=${file#\*}
   if [[ ! $hash =~ ^[0-9a-f]{64}$ || ! $file =~ ^origaitv-[A-Za-z0-9.]+(-[A-Za-z0-9.]+)*-x86_64\.iso$ ]]; then
-    echo "origaitv-iso-publish: $sum isn't an origaiTV ISO's checksum" >&2
+    echo "origaitv-iso-publish: $sum isn't an OrigaiTV ISO's checksum" >&2
     exit 1
   fi
 }

@@ -3,7 +3,7 @@
 # A stand-in gamepad on the box, for the image checks: a uinput device with
 # the sticks and buttons of an ordinary controller, so udev marks it as a
 # joystick, the way it marks a real one. It runs as the person logged in on
-# the screen, who may use uinput there (origaiTV's own udev rule).
+# the screen, who may use uinput there (OrigaiTV's own udev rule).
 #
 #   gamepad.py <fifo>     makes the gamepad, then takes a line at a time
 #                         from <fifo>:
@@ -36,7 +36,7 @@ UI_ABS_SETUP = 0x401C5504
 UI_DEV_CREATE = 0x5501
 UI_DEV_DESTROY = 0x5502
 
-NAME = b"origaiTV test gamepad"
+NAME = b"OrigaiTV test gamepad"
 BUTTONS = {"guide": BTN_MODE, "a": BTN_SOUTH}
 
 

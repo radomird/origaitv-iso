@@ -161,7 +161,7 @@ check "T15.2 port 22 is only this test's own sshd" sshd_only
 # neither enabled nor running. That's the "before and after": Omarchy's
 # install enables docker.socket and cups.service (install/config/
 # enable-services.sh), and the harness has no look at the box before
-# origaiTV's first boot.
+# OrigaiTV's first boot.
 unit_off() {
   local enabled active
   enabled=$(ssh_guest "systemctl is-enabled $1" 2>/dev/null || true)

@@ -91,7 +91,7 @@ log "Restarting the box from Omarchy's desktop"
 ssh_sudo "systemctl reboot" >/dev/null 2>&1 || true
 sleep 15
 wait_for_ssh 300 failure-S1.3-reboot-ssh-timeout || exit 1
-check "after a restart from Omarchy's desktop, the box comes back to the TV, with Omarchy's autologin beside origaiTV's" \
+check "after a restart from Omarchy's desktop, the box comes back to the TV, with Omarchy's autologin beside OrigaiTV's" \
   wait_tv 240
 
 cat "$RUN_DIR/switch.log" 2>/dev/null || true

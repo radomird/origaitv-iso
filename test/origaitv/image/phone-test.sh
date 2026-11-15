@@ -76,7 +76,7 @@ check "the phone companion's page is there on the network" grep -q "companion-we
 # it: the page names them, and the box serves them.
 home_screen() {
   grep -q 'rel="manifest" href="/companion-web/manifest.json"' <<<"$page" &&
-    jq -e '.name == "origaiTV" and (.icons | length > 0)' <<<"$(ssh_guest "curl -fsS $phone/companion-web/manifest.json" 2>/dev/null)" >/dev/null &&
+    jq -e '.name == "OrigaiTV" and (.icons | length > 0)' <<<"$(ssh_guest "curl -fsS $phone/companion-web/manifest.json" 2>/dev/null)" >/dev/null &&
     [[ $(ssh_guest "curl -s -o /dev/null -w '%{content_type}' $phone/companion-web/icon-180.png" 2>/dev/null) == "image/png" ]]
 }
 check "with a name and an icon for a phone's home screen" home_screen

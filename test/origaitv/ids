@@ -5,7 +5,7 @@
 S0.1  iso       a tagged release's ISO installs in CI and boots to the TV setup welcome screen
 S0.2  manual    the NUC boots from the ISO to the welcome screen, with no boot password (origaitv selftest S0.2)
 S0.3  manual    NetworkManager brings up the setup hotspot on the NUC's Wi-Fi (origaitv selftest S0.3)
-S0.4  iso       the origaiTV logo in the installer, boot splash and screensaver; no Omarchy file edited
+S0.4  iso       the OrigaiTV logo in the installer, boot splash and screensaver; no Omarchy file edited
 S0.5  origaitv-os the nightly run updates a box from the last release in place
 S0.6  sync      a new Omarchy stable tag gets a sync pull request that merges itself only when green
 S0.7  origaitv-os the nightly run signs tested.json, and a box holds back what it doesn't list
@@ -18,7 +18,7 @@ S1.6  iso       no window takes the screen unless the daemon puts it in front: a
 S1.7  iso       signing in to a test page in the services' Chromium shows no browser prompt: no Save password, translate, notification or autofill bubble
 
 # Phase 2's checks (PHASE-2-PLAN.md), with their own ids.
-T1.1  iso       the USB stick boots to origaiTV's first screen, and one press of Enter installs and lands in TV setup, with no Omarchy question on screen
+T1.1  iso       the USB stick boots to OrigaiTV's first screen, and one press of Enter installs and lands in TV setup, with no Omarchy question on screen
 T1.2  iso       Ctrl+C on the first screen gives Omarchy's own installer, and an install from it lands in TV setup
 T1.3  manual    a fresh install on the NUC from the phone, with no keyboard after the boot key
 T1.4  iso       a stand-in phone on the live system's hotspot picks the disk with the token, is refused without it, and rejoins the installed box's network

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# origaitv:summary=Say which channel and version one of origaiTV's release tags is
+# origaitv:summary=Say which channel and version one of OrigaiTV's release tags is
 # origaitv:args=<tag> | --names <version>
 
 # The one place this repo knows what a release tag looks like. The ISO
@@ -11,13 +11,13 @@
 #   v0.2.0             a release from the 0.x days: stable, version 0.2.0
 #
 # The same names are used in origaitv-os, which also carries Omarchy's own
-# v1.1.0 to v4.5.0 tags. So a plain v tag is origaiTV's only when it's v0.*,
+# v1.1.0 to v4.5.0 tags. So a plain v tag is OrigaiTV's only when it's v0.*,
 # here too, and from 1.0 on a tag says origaitv. Anything else isn't a
 # release tag: v1.0.0, v0.3.0-rc1, origaitv-1.0.0, a branch's name.
 #
 #   origaitv-iso-tag <tag>
 #       Prints "<channel> <version>", like "rc 1.0.0-rc1". Fails, saying
-#       why, when the tag isn't one of origaiTV's.
+#       why, when the tag isn't one of OrigaiTV's.
 #   origaitv-iso-tag --names <version>
 #       Prints the tags that version can have, a line each, the one to use
 #       first: origaitv-v1.0.0, and for a 0.x release v0.2.0 after it.
@@ -57,6 +57,6 @@ if [[ $tag =~ ^origaitv-v($RELEASE)$ || $tag =~ ^v(0\.$N\.$N)$ ]]; then
 elif [[ $tag =~ ^origaitv-v($RELEASE-$RC)$ ]]; then
   echo "rc ${BASH_REMATCH[1]}"
 else
-  echo "origaitv-iso-tag: '$tag' isn't one of origaiTV's release tags. A release is origaitv-v1.0.0, a candidate origaitv-v1.0.0-rc1, and a 0.x release was v0.2.0." >&2
+  echo "origaitv-iso-tag: '$tag' isn't one of OrigaiTV's release tags. A release is origaitv-v1.0.0, a candidate origaitv-v1.0.0-rc1, and a 0.x release was v0.2.0." >&2
   exit 1
 fi

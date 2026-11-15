@@ -57,16 +57,16 @@ check "the box went down within 20 s" box_down "$boot" 20
 
 # No key is pressed: the menu shows by itself, and waits.
 menu=0
-if wait_for_screen "origaiTV" 120; then
+if wait_for_screen "OrigaiTV" 120; then
   menu=1
   capture_console "success-T2.2-menu"
   ocr_screen >"$RUN_DIR/menu.txt" || true
 fi
-check "T2.2 restart to the boot menu comes back on origaiTV's boot menu (OCR)" test "$menu" = 1
+check "T2.2 restart to the boot menu comes back on OrigaiTV's boot menu (OCR)" test "$menu" = 1
 if (( menu )); then
   check "the menu shows its help, so it's waiting for a choice" grep -qiE "enter +boot|arrows" "$RUN_DIR/menu.txt"
   sleep 20
-  check "T2.2 the menu is still there 20 s later, with no countdown" wait_for_screen "origaiTV" 5
+  check "T2.2 the menu is still there 20 s later, with no countdown" wait_for_screen "OrigaiTV" 5
   capture_console "success-T2.2-menu-waits"
   press ret
   check "T2.2 Enter on the menu boots its first entry" wait_for_ssh 300 failure-T2.2-menu-ssh-timeout

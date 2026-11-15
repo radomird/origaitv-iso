@@ -6,7 +6,7 @@ network. So this is a small one, written from the QR code standard
 (ISO/IEC 18004): byte mode, error correction level M, versions 1 to 6
 (up to 106 bytes, far more than either code needs).
 
-    matrix("WIFI:T:WPA;S:origaiTV-1a2b;P:abcdefghjk;;")
+    matrix("WIFI:T:WPA;S:OrigaiTV-1a2b;P:abcdefghjk;;")
 
 gives the modules as rows of booleans, True for dark, without the quiet zone
 around them. test/origaitv/unit checks it against the standard's worked

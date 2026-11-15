@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Shared by origaiTV's image checks: when upstream's wait_for_ssh gives up on a
+# Shared by OrigaiTV's image checks: when upstream's wait_for_ssh gives up on a
 # VM that's still running, this says why before the check stops it.
 # Upstream's wait throws ssh's own error away, so a box that booted to the TV
 # while the host couldn't log in (the nightly run of 2026-10-31) left nothing

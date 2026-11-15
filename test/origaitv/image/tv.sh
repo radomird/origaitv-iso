@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Shared by origaiTV's TV session checks (ADR-031, stage 1). Source it after
+# Shared by OrigaiTV's TV session checks (ADR-031, stage 1). Source it after
 # upstream's base-test.sh. It asks the installed box over SSH, as the person
 # it logs in, what's on the TV: the screen daemon's status, the welcome
 # page's /health and Hyprland's own view.
@@ -70,7 +70,7 @@ wait_home() {
   return 1
 }
 
-# wait_running <version> <seconds>: until origaiTV's daemon and screen daemon
+# wait_running <version> <seconds>: until OrigaiTV's daemon and screen daemon
 # both run origaitv <version> (/health and origaitv screen status say which
 # package each process started from) and the home screen is in front again.
 # Prints the seconds it took.
@@ -89,7 +89,7 @@ wait_running() {
 }
 
 # The box needs a restart for its update: a new kernel, whose running
-# kernel's modules are gone, or Omarchy's own flag. origaiTV's services then
+# kernel's modules are gone, or Omarchy's own flag. OrigaiTV's services then
 # start again with the box rather than at the end of the update.
 # shellcheck disable=SC2016 # expanded on the box
 needs_restart() {
@@ -312,7 +312,7 @@ pin_off() {
   local grant
   grant=$(ssh_guest "curl -fsS --max-time 5 -H 'Content-Type: application/json' -d '{\"pin\":\"$1\"}' http://127.0.0.1:3000/api/pin/check" 2>/dev/null | jq -r '.grant // empty' 2>/dev/null || true)
   [[ -n $grant ]] || return 0
-  ssh_guest "curl -fsS --max-time 5 -X DELETE -H 'X-origaiTV-Grant: $grant' http://127.0.0.1:3000/api/pin" >/dev/null 2>&1 || true
+  ssh_guest "curl -fsS --max-time 5 -X DELETE -H 'X-OrigaiTV-Grant: $grant' http://127.0.0.1:3000/api/pin" >/dev/null 2>&1 || true
 }
 
 # For a check's EXIT trap: pin_off, then the checks' own cleanup, which

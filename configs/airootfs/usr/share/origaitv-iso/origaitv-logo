@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Draws origaiTV's logo in its own colours on the installer's console (ADR-028):
+# Draws OrigaiTV's logo in its own colours on the installer's console (ADR-028):
 # "agen" in Tokyo Night's #c0caf5, "tv" in #7aa2f7 and "powered by omarchy" in
 # grey, where omarchy-iso draws logo.txt all in green. logo.ansi comes from
 # origaitv-os's branding/build.py: logo.txt with indexed colours baked in.

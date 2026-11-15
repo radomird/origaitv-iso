@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# origaitv:summary=Fetch origaiTV's signed packages for the ISO's build step
+# origaitv:summary=Fetch OrigaiTV's signed packages for the ISO's build step
 # origaitv:args=<stable|edge> [<packages-dir>]
 
 # Downloads origaitv, origaitv-keyring and origaitv-voice from the origaitv-pkgs
-# release for a channel and checks every signature against origaiTV's key,
+# release for a channel and checks every signature against OrigaiTV's key,
 # whose fingerprint is pinned in
 # configs/airootfs/usr/share/origaitv-iso/key-fingerprint. They land where
 # the ISO's build step (customize.sh) picks them up. The owner
@@ -38,7 +38,7 @@ fetch origaitv.db.sig
 # The packages the repository lists now, by name and file name: origaitv and
 # origaitv-keyring, and origaitv-voice, which has Piper and its cori voice
 # (Q157), when it's there. It has to be once origaitv depends on it. Nothing
-# else belongs in origaiTV's repository.
+# else belongs in OrigaiTV's repository.
 mkdir "$work/db"
 tar -xzf "$work/origaitv.db" -C "$work/db"
 names=()
@@ -94,5 +94,5 @@ rm -f "$dest"/*.pkg.tar.zst
 for file in "${files[@]}"; do
   cp "$work/$file" "$dest/"
 done
-echo "origaiTV packages for the ISO, signatures checked against $pinned:"
+echo "OrigaiTV packages for the ISO, signatures checked against $pinned:"
 printf '  %s\n' "${files[@]}"

@@ -1,18 +1,18 @@
 #!/bin/bash
 
-# origaiTV's image layer (ADR-019, layer 5), in one place for every workflow
+# OrigaiTV's image layer (ADR-019, layer 5), in one place for every workflow
 # that needs it: origaitv-iso's own ISO workflow, and origaitv-os's sync and
 # nightly runs, which check out this repo next to theirs.
 #
 #   1. Builds the ISO with upstream's own omarchy-iso-make, from the Omarchy
 #      channel that serves the release it follows (bin/origaitv-iso-channel).
-#      origaiTV's packages have to be in
+#      OrigaiTV's packages have to be in
 #      configs/airootfs/usr/share/origaitv-iso/packages/ already
 #      (bin/origaitv-iso-packages, or packages a workflow built itself).
 #   2. Runs upstream's test/integration <iso> boot in an Arch container with
 #      KVM, the way its install-test.yml does: an unattended install, then a
 #      boot of the installed system.
-#   3. Runs origaiTV's checks in test/origaitv/image/ against the base image that
+#   3. Runs OrigaiTV's checks in test/origaitv/image/ against the base image that
 #      leaves behind. Any ORIGAITV_TEST_* variable is passed on to them.
 #
 # With ORIGAITV_TEST_OWN_REPO=<folder under /w>, a pull request's own signed
@@ -47,7 +47,7 @@
 #                produced.
 #   --from-disk  skips the build and the install too, and starts from a base
 #                image a night's run kept: test/origaitv/image/up-to-date brings
-#                it up to origaiTV's packages in the ISO's package folder, then
+#                it up to OrigaiTV's packages in the ISO's package folder, then
 #                the checks run, apart from those that need the ISO itself.
 #   --from-build skips the build and the install too, and starts from the
 #                base image another job of the same run handed on, as it is.
@@ -153,9 +153,9 @@ elif (( ${#again[@]} == 0 )); then
   shopt -s nullglob
   packages=(configs/airootfs/usr/share/origaitv-iso/packages/*.pkg.tar.zst)
   shopt -u nullglob
-  (( ${#packages[@]} > 0 )) || { echo "No origaiTV packages to put in the ISO; run bin/origaitv-iso-packages first" >&2; exit 1; }
+  (( ${#packages[@]} > 0 )) || { echo "No OrigaiTV packages to put in the ISO; run bin/origaitv-iso-packages first" >&2; exit 1; }
 
-  # origaiTV's name, volume label and boot menu, and what origaiTV's package
+  # OrigaiTV's name, volume label and boot menu, and what OrigaiTV's package
   # needs in the offline mirror, for this build only (ADR-027, ADR-031).
   bin/origaitv-iso-brand
   branded=1

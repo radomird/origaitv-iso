@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# Makes the live ISO's installer origaiTV's without editing a file of
-# omarchy-iso's (ADR-025, ADR-029): origaiTV's logo, tagline and words, no
-# encryption by default, and origaiTV's key trusted on the installed box. Runs
+# Makes the live ISO's installer OrigaiTV's without editing a file of
+# omarchy-iso's (ADR-025, ADR-029): OrigaiTV's logo, tagline and words, no
+# encryption by default, and OrigaiTV's key trusted on the installed box. Runs
 # once, in the live system's chroot, from a line bin/origaitv-iso-brand puts
 # in omarchy-iso's /root/customize_airootfs.sh for the build. Each change
 # stops the build if upstream has moved the line it changes.
 #
-# origaiTV's packages aren't added here. The installer installs a root image
+# OrigaiTV's packages aren't added here. The installer installs a root image
 # that omarchy-iso's build makes before this runs, from a mirror whose
 # checksums it has recorded by then, so bin/origaitv-iso-depends puts them in
 # that mirror and image before the build starts.
@@ -23,9 +23,9 @@ here=/usr/share/origaitv-iso
 # which the dashboard takes its width from.
 install -D -m 644 "$here/logo.txt" /usr/share/omarchy/logo.txt
 
-# The greeter's tagline (ADR-027). Under origaiTV's logo, Omarchy's own line,
-# "Beautiful, Fun & Agentic Linux by DHH", would read as if DHH made origaiTV.
-# It becomes origaiTV's public tagline; the logo still says powered by omarchy.
+# The greeter's tagline (ADR-027). Under OrigaiTV's logo, Omarchy's own line,
+# "Beautiful, Fun & Agentic Linux by DHH", would read as if DHH made OrigaiTV.
+# It becomes OrigaiTV's public tagline; the logo still says powered by omarchy.
 # Stop if upstream has moved the line, rather than ship it.
 export ORIGAITV_TAGLINE="The world's first open-source agentic TV OS"
 if ! grep -q '^  tagline="Beautiful, Fun & Agentic Linux by DHH"$' /root/configurator; then
@@ -34,10 +34,10 @@ if ! grep -q '^  tagline="Beautiful, Fun & Agentic Linux by DHH"$' /root/configu
 fi
 perl -pi -e 's/^  tagline="Beautiful, Fun & Agentic Linux by DHH"$/  tagline="$ENV{ORIGAITV_TAGLINE}"/' /root/configurator
 
-# The logo in origaiTV's colours (ADR-028). The greeter, every step's header
+# The logo in OrigaiTV's colours (ADR-028). The greeter, every step's header
 # and the install dashboard's finish screen draw logo.txt all in Omarchy's
 # green; they draw it with origaitv-logo instead. The greeter's green colour
-# shift animation goes, and the finish screen's laser etch settles on origaiTV's
+# shift animation goes, and the finish screen's laser etch settles on OrigaiTV's
 # blue before the two-colour logo is drawn over it. Each change stops the
 # build if upstream has moved the line it replaces.
 install -D -m 644 "$here/logo.ansi" /usr/local/share/origaitv/logo.ansi
@@ -80,7 +80,7 @@ patch "$configurator" "the free-space install's encryption default" \
 patch "$configurator" "the full-disk install's encryption default" \
   's/^(confirm_disk_overwrite\(\) \{\n)  local mode="encrypted"$/$1  local mode="unencrypted"/m'
 # Each confirm says how to get the other kind: upstream's encrypted default
-# says Ctrl+C gives an unencrypted install, so origaiTV's unencrypted one says
+# says Ctrl+C gives an unencrypted install, so OrigaiTV's unencrypted one says
 # Ctrl+C gives an encrypted install, in the catalog's words (below).
 # shellcheck disable=SC2016 # the single quotes hold perl
 patch "$configurator" "the free-space confirm's Ctrl+C line" \
@@ -93,9 +93,9 @@ if (( $(grep -c '^  local mode="unencrypted"' "$configurator") != 2 )) || grep -
   exit 1
 fi
 
-# The installer is origaiTV's (ADR-029): where it names what it installs, it
-# says origaiTV, the box is called origaitv unless the owner names it, and the
-# tips while it installs are origaiTV's.
+# The installer is OrigaiTV's (ADR-029): where it names what it installs, it
+# says OrigaiTV, the box is called origaitv unless the owner names it, and the
+# tips while it installs are OrigaiTV's.
 form=/usr/share/omarchy-iso/setup-form.sh
 patch "$form" "the hostname's default" \
   "s/^OMARCHY_HOSTNAME_DEFAULT='omarchy'\$/OMARCHY_HOSTNAME_DEFAULT='origaitv'/m"
@@ -136,11 +136,11 @@ if ! jq -e '."setupForm.hostnamePlaceholder" | contains("'"'"'origaitv'"'"'")' /
   exit 1
 fi
 
-# origaiTV's own lines, in English: the unencrypted confirm's Ctrl+C line, and
+# OrigaiTV's own lines, in English: the unencrypted confirm's Ctrl+C line, and
 # the tips while it installs, in place of Omarchy's.
-catalog "$iso_i18n/en.json" "origaiTV's own lines" '. + {
+catalog "$iso_i18n/en.json" "OrigaiTV's own lines" '. + {
   "encryption.hintEncrypted": "Press Ctrl+C for encrypted install.",
-  "origaitv.tip.tv": "origaiTV starts straight on home. No password to type.",
+  "origaitv.tip.tv": "OrigaiTV starts straight on home. No password to type.",
   "origaitv.tip.phone": "Next, setup from your phone",
   "origaitv.tip.agent": "Missing an app? Ask, and your TV makes it",
   "origaitv.tip.local": "Apps you build stay on this TV",
@@ -163,26 +163,26 @@ patch "$dashboard" "the tips while it installs" \
 )/ms'
 
 # The disk screens, the stopped install's headline and the finish screen
-# name what they install: origaiTV, in every language that names it. Omarchy's
-# own tips go unused, so they're left as they are, and so are origaiTV's.
+# name what they install: OrigaiTV, in every language that names it. Omarchy's
+# own tips go unused, so they're left as they are, and so are OrigaiTV's.
 mapfile -t named < <(jq -r 'to_entries[] | select((.key | startswith("origaitv.") | not) and (.value | type) == "string" and (.value | test("\\bOmarchy\\b"))) | .key' "$iso_i18n/en.json" |
   grep -Fxv -f <(printf '%s\n' "$dashboard_tips"))
 (( ${#named[@]} > 0 )) || { echo "origaitv-iso: no installer line names Omarchy any more; has upstream moved them?" >&2; exit 1; }
 named_json=$(printf '%s\n' "${named[@]}" | jq -R . | jq -s .)
 for language in "$iso_i18n"/*.json; do
   jq --indent 2 --argjson keys "$named_json" \
-    'with_entries(if (.key as $k | $keys | index($k)) and (.value | type) == "string" then .value |= gsub("\\bOmarchy\\b"; "origaiTV") else . end)' \
+    'with_entries(if (.key as $k | $keys | index($k)) and (.value | type) == "string" then .value |= gsub("\\bOmarchy\\b"; "OrigaiTV") else . end)' \
     "$language" >"$language.new"
   mv "$language.new" "$language"
 done
 for key in disk.intro mode.intro freeSpace.title failure.title finish.title finish.titleWithTime; do
-  if ! jq -e --arg key "$key" '.[$key] | test("\\borigaiTV\\b")' "$iso_i18n/en.json" >/dev/null; then
-    echo "origaitv-iso: the installer's $key doesn't say origaiTV; has upstream moved it?" >&2
+  if ! jq -e --arg key "$key" '.[$key] | test("\\bOrigaiTV\\b")' "$iso_i18n/en.json" >/dev/null; then
+    echo "origaitv-iso: the installer's $key doesn't say OrigaiTV; has upstream moved it?" >&2
     exit 1
   fi
 done
 
-# Upstream's English has em dashes, which origaiTV's copy never has.
+# Upstream's English has em dashes, which OrigaiTV's copy never has.
 catalog "$iso_i18n/en.json" "the lines with a dash" '
   ."bitlocker.suspend" |= sub(" \u2014 the drive"; ": the drive")
   | ."esp.found" |= sub(" \u2014 leaving it"; ". Leaving it")
@@ -193,24 +193,24 @@ if grep -q $'\xe2\x80\x94' "$iso_i18n/en.json"; then
   exit 1
 fi
 
-# The dashboard's logo, in origaiTV's colours, wherever it draws it.
+# The dashboard's logo, in OrigaiTV's colours, wherever it draws it.
 # shellcheck disable=SC2016 # the single quotes hold perl
 patch "$dashboard" "the dashboard's logo" \
   's/^    while IFS= read -r line; do\n      printf .\\r%s%s%b%s%b\\n. "\$CLEAR_LINE" "\$pad" "\$GREEN" "\$line" "\$RESET"\n    done <"\$LOGO_PATH"$/    origaitv-logo --prefix "\\r\$CLEAR_LINE\$pad"/m'
 # shellcheck disable=SC2016 # the single quotes hold perl
 patch "$dashboard" "the finish screen's effect" \
-  's/^      --final-gradient-stops 2 \\\n      >"\$TTY_PATH" 2>\/dev\/null \|\| \{\n        dashboard_log "logo effect skipped \(ttfx exited \$\?\)"$/      --final-gradient-stops 4 \\\n      >"\$TTY_PATH" 2>\/dev\/null || true; {\n        dashboard_log "origaiTV redraws its logo in its own colours"/m'
+  's/^      --final-gradient-stops 2 \\\n      >"\$TTY_PATH" 2>\/dev\/null \|\| \{\n        dashboard_log "logo effect skipped \(ttfx exited \$\?\)"$/      --final-gradient-stops 4 \\\n      >"\$TTY_PATH" 2>\/dev\/null || true; {\n        dashboard_log "OrigaiTV redraws its logo in its own colours"/m'
 
-# The installed box trusts origaiTV's key, as it trusts Omarchy's. The image
+# The installed box trusts OrigaiTV's key, as it trusts Omarchy's. The image
 # comes with no pacman keyring, and the installer makes one on the box and
 # fills it from a list of keyrings that names Archlinux's and Omarchy's
 # (phases_impl._target_keyrings). origaitv-keyring's own scriptlet ran in the
-# image, with no keyring to fill, so without origaiTV's name on that list the
+# image, with no keyring to fill, so without OrigaiTV's name on that list the
 # box's first update would stop on a package signed by a key it doesn't know.
 patch /usr/share/omarchy-iso/orchestrator/phases_impl.py "the installed box's keyrings" \
   's/^    keyrings = \["archlinux", "omarchy"\]$/    keyrings = ["archlinux", "omarchy", "origaitv"]/m'
 
-# origaiTV's first screen: step 1 of setup's 12. It asks only which disk, and
+# OrigaiTV's first screen: step 1 of setup's 12. It asks only which disk, and
 # Enter installs. It writes the answers Omarchy's configurator would, so the
 # install that follows is Omarchy's own, with no prompts, and restarts by
 # itself. Ctrl+C on it gives Omarchy's configurator, every question included.
@@ -261,15 +261,15 @@ automated=/root/.automated_script.sh
 # shellcheck disable=SC2016 # the single quotes hold perl
 patch "$automated" "where the configurator starts" \
   's/^else\n  \.\/configurator\nfi$/elif \/usr\/local\/bin\/origaitv-first-screen; then
-  # origaiTV'"'"'s first screen wrote the answers, so nobody is asked anything
+  # OrigaiTV'"'"'s first screen wrote the answers, so nobody is asked anything
   # more (origaitv-iso'"'"'s customize.sh).
-  echo "origaiTV'"'"'s first screen wrote the answers; installing without questions."
+  echo "OrigaiTV'"'"'s first screen wrote the answers; installing without questions."
   export OMARCHY_UI_INTERACTIVE=no ORIGAITV_STEP="2 of 12 · install"
 else
   .\/configurator
 fi/m'
 if (( $(grep -c '^elif /usr/local/bin/origaitv-first-screen; then$' "$automated") != 1 )); then
-  echo "origaitv-iso: origaiTV's first screen isn't in $automated exactly once" >&2
+  echo "origaitv-iso: OrigaiTV's first screen isn't in $automated exactly once" >&2
   exit 1
 fi
 
@@ -282,7 +282,7 @@ patch "$orchestrator/main.py" "the install's phases" \
   's/^(    return \[\n        \("Preparing live environment", prepare_live\),\n)/    from .origaitv_handover import origaitv_handover\n\n$1/m'
 # shellcheck disable=SC2016 # the single quotes hold perl
 patch "$orchestrator/main.py" "the SSH access phase" \
-  's/^(        \("Configuring SSH access", +configure_ssh_access\),\n)/$1        ("Handing over to origaiTV",     origaitv_handover),\n/m'
+  's/^(        \("Configuring SSH access", +configure_ssh_access\),\n)/$1        ("Handing over to OrigaiTV",     origaitv_handover),\n/m'
 
 # While it installs, the dashboard says which step of setup it is, under the
 # percentage, where the medium's check shows while that runs.
@@ -290,5 +290,5 @@ patch "$orchestrator/main.py" "the SSH access phase" \
 patch "$dashboard" "the line under the percentage" \
   's/^(    center "\$\{DIM\}verifying the install medium: \$\{VERIFY_PCT\}%\$\{RESET\}" "\$PROGRESS_TEXT_WIDTH"\n)(  else\n    blank_line\n  fi)$/$1  elif [[ -n \$\{ORIGAITV_STEP:-\} ]]; then\n    center "\$\{DIM\}\$\{ORIGAITV_STEP\}\$\{RESET\}" "\$PROGRESS_TEXT_WIDTH"\n$2/m'
 
-echo "origaitv-iso: origaiTV's logo, tagline and words in the installer, no encryption by default, and origaiTV's key on the box"
-echo "origaitv-iso: origaiTV's first screen asks only which disk, and Ctrl+C on it gives Omarchy's installer"
+echo "origaitv-iso: OrigaiTV's logo, tagline and words in the installer, no encryption by default, and OrigaiTV's key on the box"
+echo "origaitv-iso: OrigaiTV's first screen asks only which disk, and Ctrl+C on it gives Omarchy's installer"

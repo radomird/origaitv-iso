@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# How much of the box each of origaiTV's system services can reach (T15.2):
+# How much of the box each of OrigaiTV's system services can reach (T15.2):
 # systemd-analyze security on every origaitv-* service, with a ceiling on its
 # exposure score, so a unit can't quietly lose its sandbox in a later
 # change. systemd scores a unit from 0 (shut in) to 10 (the whole system):
@@ -8,7 +8,7 @@
 # unit files, so this asks systemd on an installed box.
 #
 # Each unit is in one of three classes, with one ceiling per class:
-# - sandboxed: what faces the network or runs code origaiTV didn't write: the
+# - sandboxed: what faces the network or runs code OrigaiTV didn't write: the
 #   daemon, the voice router, the builder and its way out. These must stay
 #   well shut in.
 # - root, kept in: root's helpers that take a drop from the daemon. They
@@ -57,7 +57,7 @@ wait_tv 240 >/dev/null || true
 # "transient" and isn't the package's, so it's left out.
 ssh_guest "systemctl list-unit-files 'origaitv-*' --type=service --no-legend --no-pager" >"$RUN_DIR/unit-files.txt" 2>&1 || true
 mapfile -t units < <(awk '$2 != "transient" { sub(/\.service$/, "", $1); print $1 }' "$RUN_DIR/unit-files.txt" | sort -u)
-check "the box has origaiTV's services to score" test "${#units[@]}" -ge 10
+check "the box has OrigaiTV's services to score" test "${#units[@]}" -ge 10
 
 : >"$RUN_DIR/units.txt"
 : >"$RUN_DIR/security.txt"
@@ -114,7 +114,7 @@ under() {
   awk -v score="$1" -v max="$2" 'BEGIN { exit !(score ~ /^[0-9.]+$/ && score + 0 < max + 0) }'
 }
 
-log "Exposure of each of origaiTV's services (0 is shut in, 10 is the whole system):"
+log "Exposure of each of OrigaiTV's services (0 is shut in, 10 is the whole system):"
 printf '%-34s %-10s %-8s %s\n' unit class score ceiling
 while read -r unit score; do
   printf '%-34s %-10s %-8s %s\n' "$unit" "$(class_of "$unit")" "$score" "$(ceiling_of "$unit")"

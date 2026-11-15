@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-# origaiTV's logo on the boot splash from the very first boot, and still there
+# OrigaiTV's logo on the boot splash from the very first boot, and still there
 # after Omarchy's settings package updates (ADR-021, ADR-029). Omarchy's
 # splash belongs to omarchy-settings, which puts Omarchy's logo back each
-# time it's installed; origaiTV's pacman hook puts origaiTV's back and rebuilds
+# time it's installed; OrigaiTV's pacman hook puts OrigaiTV's back and rebuilds
 # the boot image.
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)/test/integration.d/base-test.sh"
@@ -14,7 +14,7 @@ base_image_ready || { echo "No base image; run ./test/integration first" >&2; ex
 start_vm_from_base
 wait_for_ssh 300 failure-splash-update-ssh-timeout || exit 1
 
-check "origaiTV's splash hook ran while the installer put the packages down" \
+check "OrigaiTV's splash hook ran while the installer put the packages down" \
   ssh_sudo "grep -q \"running '60-origaitv-splash.hook'\" /var/log/pacman.log"
 
 # The test box has never synced its package databases. It does that first,
@@ -38,9 +38,9 @@ ssh_sudo "if pacman -Si omarchy-settings | grep -q '^Version *: $installed\$'; t
     done
   fi" >"$RUN_DIR/omarchy-settings.log" 2>&1 || true
 tail -n 15 "$RUN_DIR/omarchy-settings.log"
-check "omarchy-settings was reinstalled, and origaiTV's hook ran after it" \
-  grep -q "Putting origaiTV's logo on the boot splash" "$RUN_DIR/omarchy-settings.log"
-check "after an Omarchy settings update, the splash is still origaiTV's logo" \
+check "omarchy-settings was reinstalled, and OrigaiTV's hook ran after it" \
+  grep -q "Putting OrigaiTV's logo on the boot splash" "$RUN_DIR/omarchy-settings.log"
+check "after an Omarchy settings update, the splash is still OrigaiTV's logo" \
   ssh_sudo "cmp -s /usr/share/origaitv/branding/plymouth-logo.png /usr/share/plymouth/themes/omarchy/logo.png"
 check "and the boot image was rebuilt with it" \
   ssh_sudo "[ -n \"\$(find /boot -name '*.efi' -newer /root/before-omarchy-settings | head -n 1)\" ]"

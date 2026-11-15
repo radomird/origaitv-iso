@@ -46,7 +46,7 @@ until_file() {
 # api <method> <path> [json] [grant]: the daemon's answer, as the TV asks.
 api() {
   local headers="-H 'Content-Type: application/json'" body=""
-  [[ -z ${4:-} ]] || headers+=" -H 'X-origaiTV-Grant: $4'"
+  [[ -z ${4:-} ]] || headers+=" -H 'X-OrigaiTV-Grant: $4'"
   [[ -z ${3:-} ]] || body="-d '$3'"
   ssh_guest "curl -sS --max-time 10 -X $1 $headers $body http://127.0.0.1:3000$2" 2>/dev/null
 }
@@ -66,7 +66,7 @@ mkdir -p "$work/repo/apps/standin" "$work/index"
 # limit the run's folder is past, so the key is made in a short one.
 GNUPGHOME=$(mktemp -d /tmp/origaitv-gpg.XXXXXX)
 export GNUPGHOME
-gpg --batch --quiet --passphrase '' --quick-gen-key "origaiTV image check <check@origaitv.invalid>" ed25519 sign never
+gpg --batch --quiet --passphrase '' --quick-gen-key "OrigaiTV image check <check@origaitv.invalid>" ed25519 sign never
 gpg --batch --armor --export >"$work/keyring.asc"
 cat >"$work/repo/apps/standin/manifest.json" <<'MANIFEST'
 {
@@ -76,7 +76,7 @@ cat >"$work/repo/apps/standin/manifest.json" <<'MANIFEST'
   "version": "1.0.0",
   "author": "origaitv",
   "license": "MIT",
-  "description": "A stand-in game for origaiTV's image check",
+  "description": "A stand-in game for OrigaiTV's image check",
   "kinds": ["tv-app"],
   "entryPoints": { "tvApp": "app.ts" },
   "tv": {
@@ -91,7 +91,7 @@ cat >"$work/repo/apps/standin/manifest.json" <<'MANIFEST'
 }
 MANIFEST
 cat >"$work/repo/apps/standin/app.ts" <<'APP'
-// A stand-in game for origaiTV's image check: the box opens its program.
+// A stand-in game for OrigaiTV's image check: the box opens its program.
 export default { id: "origaitv.standin", async launch() {} };
 APP
 
@@ -102,16 +102,16 @@ set -euo pipefail
 pkg=/var/lib/origaitv-check/pkg
 rm -rf "$pkg"
 install -d "$pkg/root/usr/bin"
-printf '#!/bin/bash\necho "a stand-in game for origaiTV'"'"'s image check"\n' >"$pkg/root/usr/bin/origaitv-stand-in-game"
+printf '#!/bin/bash\necho "a stand-in game for OrigaiTV'"'"'s image check"\n' >"$pkg/root/usr/bin/origaitv-stand-in-game"
 chmod 755 "$pkg/root/usr/bin/origaitv-stand-in-game"
 cat >"$pkg/root/.PKGINFO" <<'INFO'
 pkgname = origaitv-stand-in-game
 pkgbase = origaitv-stand-in-game
 pkgver = 1.0-1
-pkgdesc = A stand-in program for origaiTV's image check
+pkgdesc = A stand-in program for OrigaiTV's image check
 url = https://example.invalid/origaitv-stand-in-game
 builddate = 1700000000
-packager = origaiTV image check
+packager = OrigaiTV image check
 size = 64
 arch = any
 license = MIT
@@ -122,7 +122,7 @@ grep -q '^\[origaitv-check\]' /etc/pacman.conf || printf '\n[origaitv-check]\nSi
 install -m 644 "$pkg/origaitv-check.db.tar.gz" /var/lib/pacman/sync/origaitv-check.db
 # A box that's been updated has every repository's package list, and one
 # straight from the ISO has none. So this one fetches them, as its first
-# update would. An empty list in a real one's place isn't enough: origaiTV's
+# update would. An empty list in a real one's place isn't enough: OrigaiTV's
 # repository takes a list only with its signature, and nothing here can
 # sign one. An empty one still stands in for a repository that didn't
 # answer and takes an unsigned list.
@@ -144,11 +144,11 @@ ssh_sudo "install -d -m 755 $CHECK && tar -xzf /tmp/origaitv-check.tgz -C $CHECK
 
 # The app's repo is made on the box, which has git as any box does for
 # its installs, and the index pins the commit it made, signed here.
-ssh_sudo "git -C $CHECK/repo init -q && git -C $CHECK/repo add -A && git -C $CHECK/repo -c user.name='origaiTV image check' -c user.email=check@origaitv.invalid commit -qm 'A stand-in game'" >>"$RUN_DIR/check-setup.log" 2>&1 || true
+ssh_sudo "git -C $CHECK/repo init -q && git -C $CHECK/repo add -A && git -C $CHECK/repo -c user.name='OrigaiTV image check' -c user.email=check@origaitv.invalid commit -qm 'A stand-in game'" >>"$RUN_DIR/check-setup.log" 2>&1 || true
 commit=$(ssh_sudo "git -C $CHECK/repo rev-parse HEAD" 2>/dev/null | tr -d '\r' | tail -n 1)
 check "the stand-in game's repo is on the box, at a commit ($commit)" test "${#commit}" = 40
 jq -n --arg commit "$commit" --arg repo "file://$CHECK/repo" \
-  '{schema: 1, apps: [{id: "origaitv.standin", tier: "official", name: "Stand-in game", version: "1.0.0", description: "A stand-in game for origaiTV'"'"'s image check", repo: $repo, commit: $commit, path: "apps/standin"}]}' >"$work/index/index.json"
+  '{schema: 1, apps: [{id: "origaitv.standin", tier: "official", name: "Stand-in game", version: "1.0.0", description: "A stand-in game for OrigaiTV'"'"'s image check", repo: $repo, commit: $commit, path: "apps/standin"}]}' >"$work/index/index.json"
 gpg --batch --quiet --detach-sign --output "$work/index/index.json.sig" "$work/index/index.json"
 # The key's done its job: nothing of it is kept.
 gpgconf --kill gpg-agent 2>/dev/null || true

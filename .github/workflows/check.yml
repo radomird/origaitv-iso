@@ -1,6 +1,6 @@
 name: Check
 
-# origaiTV's fast gate (ADR-019, layer 1) on every pull request and every push to
+# OrigaiTV's fast gate (ADR-019, layer 1) on every pull request and every push to
 # origaitv: omarchy-iso's files unchanged since .github/omarchy-base, no em
 # dashes, no secrets, no service automation, no owner in code and shellcheck.
 # Upstream's own unit tests run in its unit-test.yml. Other workflows reuse
@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 10
     steps:
       # Full history, no file contents until needed: the gate compares trees
-      # with the base and reads only the files origaiTV added.
+      # with the base and reads only the files OrigaiTV added.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -53,7 +53,7 @@ jobs:
       - name: The gate catches what it should
         run: test/origaitv/policy/check-test.sh --ci
 
-      # origaiTV's own unit tests: the USB stick's first screen, the phone's
+      # OrigaiTV's own unit tests: the USB stick's first screen, the phone's
       # way through it and what it hands the installed box. Python's own
       # unittest, in seconds, and zbarimg to read the QR codes back, kept in
       # the cache so the job doesn't need Ubuntu's mirror each run.
@@ -63,7 +63,7 @@ jobs:
           packages: zbar-tools
           command: zbarimg
           name: zbar
-      - name: origaiTV's unit tests
+      - name: OrigaiTV's unit tests
         run: test/origaitv/unit/run -v
 
   report:

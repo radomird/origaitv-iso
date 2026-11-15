@@ -5,7 +5,7 @@ whether the ISO's name is the one that run was for, and that it's the only
 ISO the run has.
 
 A release tag is origaitv-v1.0.0, a candidate's origaitv-v1.0.0-rc1, and a 0.x
-release was v0.2.0. No other v tag is origaiTV's. A night's edge ISO goes by
+release was v0.2.0. No other v tag is OrigaiTV's. A night's edge ISO goes by
 its edge leg, not by the whole night.
 
 A stand-in for gh is first on PATH. It answers "gh api <path>" from a folder
