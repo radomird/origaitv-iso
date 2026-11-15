@@ -1,0 +1,23 @@
+# Lines that may still say agentv or AgenTV (bin/origaitv-check): perl
+# patterns for "<file>:<line>". Everything else says origaiTV.
+
+# The agentv branch keeps its name, since the release environment and the
+# rulesets are tied to it. The workflows and the scripts that read them name it.
+^\.github/(workflows|scripts|actions)/
+^bin/origaitv-iso-kept:BRANCH=agentv$
+^test/origaitv/unit/test_iso_(kept|sign)\.py:
+
+# Prose that names the branch.
+\bagentv branch\b
+
+# The image harness, which refuses a night's box from before the rename.
+^test/origaitv/image/up-to-date:.*\b(agentv package|pacman -Q agentv)\b
+
+# The signing key's secret keeps its name too.
+AGENTV_SIGNING_KEY
+
+# Saying once what the project used to be called.
+used to be called AgenTV
+
+# This check, which names what it looks for.
+^bin/origaitv-check:

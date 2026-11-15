@@ -37,6 +37,14 @@ want=$(basename "$(printf '%s\n' "${packages[@]}" | grep -E '/origaitv-[0-9][^/]
 start_vm_from_base
 wait_for_ssh 300 failure-up-to-date-ssh-timeout || exit 1
 wait_tv 240 >/dev/null || true
+# A night's box from before the rename to origaiTV has the agentv package
+# and nothing called origaitv. Nothing moves such a box over, so this run
+# can't start from it: build the ISO instead, or wait for the next night.
+if ssh_guest "pacman -Q agentv" >/dev/null 2>&1; then
+  echo "The night's box is from before the rename to origaiTV, so this run can't start from it. Run it without from-disk, or after the next nightly run." >&2
+  stop_vm
+  exit 1
+fi
 before=$(ssh_guest "pacman -Q origaitv" | cut -d' ' -f2)
 log "The night's box has origaitv $before; bringing it up to $want"
 
