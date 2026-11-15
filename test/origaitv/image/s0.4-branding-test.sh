@@ -1,0 +1,113 @@
+#!/bin/bash
+#
+# S0.4: the installer, the boot splash and the screensaver show origaiTV's logo,
+# with "powered by omarchy" under it in the installer (ADR-021). That no file
+# of Omarchy's is edited for it is the Check workflow's half.
+
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)/test/integration.d/base-test.sh"
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/ssh.sh"
+
+base_image_ready || { echo "No base image; run ./test/integration first" >&2; exit 1; }
+
+# The installer: boot the ISO itself, answer nothing, and read its first
+# screen, origaiTV's own, which draws the logo with its "powered by omarchy"
+# row. Then Ctrl+C for Omarchy's own installer, whose greeter draws
+# /usr/share/omarchy/logo.txt with origaiTV's tagline under it. (The install
+# dashboard shows Omarchy's mark while it works and the logo only on its
+# finish screen, which an unattended install reboots past.)
+installer_shows_logo() {
+  qemu-img create -f qcow2 "$RUN_DIR/greeter.qcow2" 8G >/dev/null
+  cp "$OVMF_VARS_TEMPLATE" "$RUN_DIR/OVMF_VARS.greeter.fd"
+  # shellcheck disable=SC2034 # start_vm reads it
+  ACTIVE_OVMF="$RUN_DIR/OVMF_VARS.greeter.fd"
+  start_vm "$RUN_DIR/greeter.qcow2" "$RUN_DIR/greeter-serial.log" \
+    -drive "file=$ISO,media=cdrom,if=none,format=raw,id=cdrom0" \
+    -device ide-cd,drive=cdrom0,bootindex=2
+  local found=1
+  # 4.5's console font reads as "povered" to OCR at times, so match the
+  # words after it, which only that row has.
+  if wait_for_screen "by omarchy" 300; then
+    capture_console "success-S0.4-installer"
+    found=0
+    press ctrl-c
+    if wait_for_screen "agentic TV" 60; then
+      capture_console "success-S0.4-greeter"
+      ocr_screen >"$RUN_DIR/greeter.txt"
+    fi
+  fi
+  stop_vm
+  return $found
+}
+check "S0.4 the installer shows origaiTV's logo, powered by omarchy (OCR)" installer_shows_logo
+
+# Under origaiTV's logo, the greeter's line is origaiTV's own, not Omarchy's "by
+# DHH", which would read as if DHH made origaiTV (ADR-027).
+greeter_says_origaitv() {
+  # OCR reads the O of "OS" as a zero at times, so match the words before it.
+  [[ -s $RUN_DIR/greeter.txt ]] && grep -qi "open-source agentic TV" "$RUN_DIR/greeter.txt" && ! grep -qi "by DHH" "$RUN_DIR/greeter.txt"
+}
+check "the installer's tagline is origaiTV's, not Omarchy's by DHH" greeter_says_origaitv
+
+# The logo in origaiTV's colours (ADR-028): the greeter's screen has "agen"'s
+# #c0caf5 and "tv"'s #7aa2f7, and none of Omarchy's green #9ece6a.
+greeter_in_origaitv_colours() {
+  local colours
+  [[ -f $RUN_DIR/success-S0.4-installer.png ]] || return 1
+  colours=$(magick "$RUN_DIR/success-S0.4-installer.png" -unique-colors txt:- 2>/dev/null)
+  grep -qi '#C0CAF5' <<<"$colours" && grep -qi '#7AA2F7' <<<"$colours" && ! grep -qi '#9ECE6A' <<<"$colours"
+}
+check "the installer draws the logo in origaiTV's colours, not Omarchy's green" greeter_in_origaitv_colours
+
+# The ISO itself (ADR-027): the volume label a PC's boot menu lists, and the
+# ISO's own boot menus.
+volume_label_is_origaitv() {
+  local label
+  label=$(dd if="$ISO" bs=1 skip=32808 count=32 2>/dev/null | tr -d ' ')
+  printf '%s\n' "$label" >"$RUN_DIR/volume-label.txt"
+  [[ $label == ORIGAITV_* ]]
+}
+boot_menus_say_origaitv() {
+  local grub syslinux
+  grub=$(bsdtar -xOf "$ISO" boot/grub/grub.cfg 2>/dev/null) || return 1
+  syslinux=$(bsdtar -xOf "$ISO" boot/syslinux/archiso_head.cfg 2>/dev/null) || return 1
+  [[ $grub == *'menuentry "origaiTV ('* && $grub != *'menuentry "Omarchy'* && $syslinux == *"MENU TITLE origaiTV"* ]]
+}
+check "the ISO's volume label is origaiTV's" volume_label_is_origaitv
+check "the ISO's boot menus say origaiTV" boot_menus_say_origaitv
+
+log "Booting the installed system"
+start_vm_from_base
+wait_for_ssh 300 failure-S0.4-ssh-timeout || exit 1
+
+# The splash: origaiTV's logo in the theme, that theme the default, and a boot
+# image built after it, which is what the box actually shows at power on.
+# First boot's own log has to say the branding step finished, too.
+check "first boot's branding step finished" \
+  ssh_sudo "grep -q 'Completed: .*/branding.sh' /var/log/origaitv-firstboot.log"
+check "S0.4 the boot splash is origaiTV's logo" \
+  ssh_sudo "cmp -s /usr/share/plymouth/themes/omarchy/logo.png /usr/share/origaitv/branding/plymouth-logo.png"
+check "S0.4 the splash theme is the default" \
+  ssh_sudo "[ \"\$(plymouth-set-default-theme)\" = omarchy ]"
+check "S0.4 the boot image was rebuilt with the new splash" \
+  ssh_sudo "[ -n \"\$(find /boot -name '*.efi' -newer /usr/share/plymouth/themes/omarchy/logo.png | head -n 1)\" ]"
+check "S0.4 the screensaver is origaiTV's logo" \
+  ssh_guest "cmp -s ~/.config/omarchy/branding/screensaver.txt /usr/share/origaitv/branding/logo.txt"
+check "About shows origaiTV's logo" \
+  ssh_guest "cmp -s ~/.config/omarchy/branding/about.txt /usr/share/origaitv/branding/logo.txt"
+check "first boot left no passwordless sudo behind" ssh_sudo "! ls /etc/sudoers.d/ | grep -qE 'nopasswd|99-origaitv-branding'"
+
+# The box's own boot menu (ADR-027): Limine's header and the entry say
+# origaiTV, and no entry is left under Omarchy's name.
+check "the box's boot menu header says origaiTV" \
+  ssh_sudo "grep -q '^interface_branding: origaiTV$' /boot/limine.conf"
+check "the box's boot menu entry is origaiTV" \
+  ssh_sudo "grep -qE '^/\\+?origaiTV' /boot/limine.conf && ! grep -qE '^/\\+?Omarchy' /boot/limine.conf"
+# Kept as .txt so the run's artifacts include it, and its entries shown here.
+ssh_sudo "cat /boot/limine.conf" >"$RUN_DIR/limine.conf.txt" 2>&1 || true
+grep -nE '^ */|comment|interface_branding' "$RUN_DIR/limine.conf.txt" || true
+
+ssh_sudo "cat /var/log/origaitv-firstboot.log" >"$RUN_DIR/origaitv-firstboot.log" 2>&1 || true
+ssh_guest "ls -la ~/.config/omarchy/branding/" >"$RUN_DIR/branding-files.txt" 2>&1 || true
+
+stop_vm
+finish

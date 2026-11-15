@@ -1,0 +1,98 @@
+#!/bin/bash
+
+# origaitv:summary=Fetch origaiTV's signed packages for the ISO's build step
+# origaitv:args=<stable|edge> [<packages-dir>]
+
+# Downloads origaitv, origaitv-keyring and origaitv-voice from the origaitv-pkgs
+# release for a channel and checks every signature against origaiTV's key,
+# whose fingerprint is pinned in
+# configs/airootfs/usr/share/origaitv-iso/key-fingerprint. They land where
+# the ISO's build step (customize.sh) picks them up. The owner
+# comes from ORIGAITV_OWNER, which CI sets from GitHub's own context, so moving
+# the repos changes no code.
+
+set -euo pipefail
+
+ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+channel="${1:?usage: origaitv-iso-packages <stable|edge> [<packages-dir>]}"
+dest="${2:-$ROOT/configs/airootfs/usr/share/origaitv-iso/packages}"
+: "${ORIGAITV_OWNER:?set ORIGAITV_OWNER to the GitHub owner of origaitv-pkgs}"
+
+url="https://github.com/$ORIGAITV_OWNER/origaitv-pkgs/releases/download/$channel"
+pinned=$(tr -d '[:space:]' <"$ROOT/configs/airootfs/usr/share/origaitv-iso/key-fingerprint")
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+export GNUPGHOME="$work/gnupg"
+mkdir -m 700 "$GNUPGHOME"
+
+# GitHub's release downloads now and then answer 500 for a few seconds, so
+# keep trying for up to five minutes before calling the build broken.
+fetch() {
+  curl -fsSL --retry 8 --retry-delay 15 --retry-max-time 300 -o "$work/$1" "$url/$1"
+}
+
+fetch origaitv.db
+fetch origaitv.db.sig
+
+# The packages the repository lists now, by name and file name: origaitv and
+# origaitv-keyring, and origaitv-voice, which has Piper and its cori voice
+# (Q157), when it's there. It has to be once origaitv depends on it. Nothing
+# else belongs in origaiTV's repository.
+mkdir "$work/db"
+tar -xzf "$work/origaitv.db" -C "$work/db"
+names=()
+files=()
+for desc in "$work"/db/*/desc; do
+  names+=("$(awk '/^%NAME%$/ { getline; print; exit }' "$desc")")
+  files+=("$(awk '/^%FILENAME%$/ { getline; print; exit }' "$desc")")
+done
+has() {
+  printf '%s\n' "${names[@]}" | grep -qxF "$1"
+}
+for name in "${names[@]}"; do
+  case $name in
+    origaitv | origaitv-keyring | origaitv-voice) ;;
+    *) echo "$url has a package this ISO doesn't expect: $name" >&2; exit 1 ;;
+  esac
+done
+if ! has origaitv || ! has origaitv-keyring; then
+  echo "expected origaitv and origaitv-keyring in $url, found: ${names[*]}" >&2
+  exit 1
+fi
+if sed -n '/^%DEPENDS%$/,/^$/p' "$work"/db/origaitv-[0-9]*/desc | grep -qx origaitv-voice && ! has origaitv-voice; then
+  echo "origaitv in $url needs origaitv-voice, which isn't there" >&2
+  exit 1
+fi
+
+for file in "${files[@]}"; do
+  fetch "$file"
+  fetch "$file.sig"
+done
+
+# The key comes out of origaitv-keyring itself, and counts only if it's the
+# one pinned here.
+keyring=$(printf '%s\n' "${files[@]}" | grep '^origaitv-keyring-')
+tar -xf "$work/$keyring" -C "$work" usr/share/pacman/keyrings/origaitv.gpg
+gpg --batch --quiet --import "$work/usr/share/pacman/keyrings/origaitv.gpg"
+fpr=$(gpg --batch --with-colons --list-keys | awk -F: '/^fpr:/ { print $10; exit }')
+if [[ $fpr != "$pinned" ]]; then
+  echo "origaitv-keyring carries key $fpr, but this ISO trusts only $pinned" >&2
+  exit 1
+fi
+
+# gpgv accepts a signature only from a key in the keyring it's given, and
+# that keyring holds the pinned key alone.
+gpg --batch --export "$pinned" >"$work/trusted.gpg"
+gpgv --quiet --keyring "$work/trusted.gpg" "$work/origaitv.db.sig" "$work/origaitv.db"
+for file in "${files[@]}"; do
+  gpgv --quiet --keyring "$work/trusted.gpg" "$work/$file.sig" "$work/$file"
+done
+
+mkdir -p "$dest"
+rm -f "$dest"/*.pkg.tar.zst
+for file in "${files[@]}"; do
+  cp "$work/$file" "$dest/"
+done
+echo "origaiTV packages for the ISO, signatures checked against $pinned:"
+printf '  %s\n' "${files[@]}"
