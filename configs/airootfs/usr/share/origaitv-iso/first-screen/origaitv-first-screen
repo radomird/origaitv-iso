@@ -494,7 +494,12 @@ def render(disks: list[Disk], selected: int, cols: int, rows: int, phone: dict |
     # hints: only a small console shows them, and it has no room to spare.
     body += ["", hints(disks), instead] if instead else ["", "", hints(disks)]
 
-    lines = logo + ["", "", steps_line(1), "", ""] + body
+    # A small console loses two of the blank lines around the steps before
+    # it loses anything the screen has to say.
+    gap = ["", "", steps_line(1), "", ""]
+    if top + len(logo) + len(gap) + len(body) - 1 > rows:
+        gap = ["", steps_line(1), ""]
+    lines = logo + gap + body
     out = [CSI + "?25l", CSI + "H", CSI + "2J"]
     for i, line in enumerate(lines):
         row = top + i
