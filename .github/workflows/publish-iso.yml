@@ -35,7 +35,7 @@ name: Publish ISO
 # has written one. A release's notes get the same part added. The release
 # itself is written by hand.
 #
-# It always runs from the agentv branch, never from the tag or the branch
+# It always runs from the origaitv branch, never from the tag or the branch
 # that built the ISO, so the build never has the bucket's keys or the
 # signing key. Four jobs:
 #
@@ -45,7 +45,7 @@ name: Publish ISO
 #   publish  has the bucket's keys: uploads, checks, and cleans up
 #
 # sign and publish read their secrets through the "release" environment,
-# which only agentv may use: AGENTV_SIGNING_KEY for sign, and
+# which only origaitv may use: AGENTV_SIGNING_KEY for sign, and
 # R2_ACCOUNT_ID, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY for publish. The
 # variables R2_BUCKET and ISO_URL say where the bucket is.
 
@@ -157,7 +157,7 @@ jobs:
               # with an origaitv-iso branch that isn't merged.
               channel=edge
               repo=origaitv-os
-              run=$(gh api "repos/$OWNER/origaitv-os/actions/workflows/nightly.yml/runs?branch=agentv&event=schedule&status=completed&per_page=1" \
+              run=$(gh api "repos/$OWNER/origaitv-os/actions/workflows/nightly.yml/runs?branch=origaitv&event=schedule&status=completed&per_page=1" \
                 --jq '.workflow_runs[0].id // empty')
               [[ -n $run ]] || skip "Nothing is published: origaitv-os has no finished nightly run."
               name=$(gh api "repos/$OWNER/origaitv-os/actions/runs/$run/artifacts?per_page=100" --paginate \
@@ -203,7 +203,7 @@ jobs:
       # which repo and workflow made it, what started it and on what,
       # whether it passed, whether the ISO's name is the one that run was
       # for, and that it's the only ISO the run has. A release tag's commit
-      # has to be on agentv too. A scheduled night was asked about above, by
+      # has to be on origaitv too. A scheduled night was asked about above, by
       # its edge leg, and is asked here again with the rest. The script is
       # in the checkout this job starts with.
       - name: Check the run that kept it

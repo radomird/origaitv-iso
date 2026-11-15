@@ -9,7 +9,7 @@ name: ISO
 #
 # It runs on pull requests that touch the build, once they're ready for
 # review (the gate job below says when), on release tags and by hand. A
-# merge to agentv doesn't rebuild it: the nightly run in origaitv-os builds the
+# merge to origaitv doesn't rebuild it: the nightly run in origaitv-os builds the
 # edge ISO every night, from this branch.
 #
 # A release tag is origaitv-v1.0.0, a candidate's origaitv-v1.0.0-rc1, and a 0.x
