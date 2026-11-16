@@ -144,10 +144,13 @@ channel_iso() {
 # The ISOs published before the rename to OrigaiTV went by the old name,
 # with the same versions. The bucket's channel files still named them when
 # the rename landed, so the first publish of each channel after it has to
-# replace one. Such an ISO is only ever the one a channel had before: it's
-# replaced and then taken out like any other, and nothing new goes up
-# under that name. Once every channel's file names an origaitv- ISO, this
-# has nothing left to match.
+# replace one. An upload takes the channel's file naming one as the ISO
+# before. The clean-up after it takes out every ISO under the old name with
+# that channel's kind of version, with its checksum and signature, as it
+# does for the channel's older ISOs under the new name: not just the one
+# the file named. Nothing new goes up under the old name. Once every
+# channel's file names an origaitv- ISO and its clean-up has run, this has
+# nothing left to match.
 OLD_PREFIX=agentv-
 
 # Is $2 the file name of one of channel $1's ISOs from before the rename?
