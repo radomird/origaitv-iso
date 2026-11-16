@@ -99,8 +99,11 @@ elif command == "s3api abort-multipart-upload":
     save()
 elif command == "s3api head-object":
     path = bucket / flag("--key")
+    fails = os.environ.get("FAKE_HEAD_FAILS")
+    if fails and str(path).endswith(fails):
+        sys.exit("An error occurred (InternalError) when calling the HeadObject operation")
     if not path.is_file():
-        sys.exit(254)
+        sys.exit("An error occurred (404) when calling the HeadObject operation: Not Found")
     size = path.stat().st_size
     short = os.environ.get("FAKE_SHORT")
     if short and str(path).endswith(short):
@@ -177,6 +180,7 @@ class IsoPublish(unittest.TestCase):
             "FAKE_SHORT", "FAKE_CP_FAILS", "FAKE_GET_FAILS", "FAKE_LIST_FAILS", "FAKE_LIST_GARBAGE", "FAKE_LIST_WHOLE_BUCKET",
             "FAKE_LIST_TRUNCATED", "FAKE_LIST_HIDES", "FAKE_LIST_KEEPS_COUNT", "ORIGAITV_ISO_STALE_MAX",
             "FAKE_CP_FAILS_FIRST", "FAKE_UPLOADS_LIST_FAILS", "ORIGAITV_ISO_TRIES", "AWS_CONFIG_FILE",
+            "FAKE_HEAD_FAILS",
         ):
             self.env.pop(name, None)
 
@@ -205,9 +209,9 @@ class IsoPublish(unittest.TestCase):
             (names / f"{name}.iso.sha256.sig").write_bytes(b"a signature")
         return iso, names
 
-    def publish(self, channel, name, content=b"an ISO", signed=True):
+    def publish(self, channel, name, content=b"an ISO", signed=True, **env):
         iso, names = self.named(channel, name, content, signed)
-        result = self.run_publish("upload", channel, str(iso), str(names))
+        result = self.run_publish("upload", channel, str(iso), str(names), **env)
         self.assertEqual(result.returncode, 0, result.stderr)
         return result
 
@@ -308,10 +312,62 @@ class IsoPublish(unittest.TestCase):
                 "channel": "stable",
                 "version": "1.0.0",
                 "file": "origaitv-1.0.0-x86_64.iso",
+                "size": len(b"release"),
                 "sha256": hashlib.sha256(b"release").hexdigest(),
                 "url": "https://downloads.example.invalid/iso/origaitv-1.0.0-x86_64.iso",
+                "sha256Url": "https://downloads.example.invalid/iso/origaitv-1.0.0-x86_64.iso.sha256",
+                "sigUrl": "https://downloads.example.invalid/iso/origaitv-1.0.0-x86_64.iso.sha256.sig",
             },
         )
+
+    def test_the_channels_file_has_the_isos_size_in_bytes(self):
+        content = b"x" * 12345
+        self.publish("rc", "origaitv-1.0.0-rc3-x86_64", content)
+        raw = (self.bucket / "iso/rc.json").read_text()
+        # A number, not a string, and the bucket's size of the ISO.
+        self.assertIn('"size": 12345', raw)
+        self.assertEqual(self.pointer("rc")["size"], (self.bucket / "iso/origaitv-1.0.0-rc3-x86_64.iso").stat().st_size)
+
+    def test_every_address_in_the_channels_file_is_a_file_in_the_bucket(self):
+        for iso_url in ("https://downloads.example.invalid", "https://downloads.example.invalid/", "https://iso.example.invalid/"):
+            self.publish("edge", "origaitv-0.2.0.r840.gabcdef012-x86_64", ISO_URL=iso_url)
+            pointer = self.pointer("edge")
+            base = iso_url.rstrip("/") + "/"
+            for field in ("url", "sha256Url", "sigUrl"):
+                self.assertTrue(pointer[field].startswith(base + "iso/"), f"{field} with {iso_url}")
+                self.assertIn(pointer[field][len(base):], self.keys(), field)
+            self.assertEqual(pointer["sha256Url"], pointer["url"] + ".sha256")
+            self.assertEqual(pointer["sigUrl"], pointer["url"] + ".sha256.sig")
+            shutil.rmtree(self.bucket)
+            self.bucket.mkdir()
+
+    def test_an_unsigned_iso_has_no_signature_address(self):
+        self.publish("stable", "origaitv-1.0.0-x86_64", signed=False)
+        pointer = self.pointer("stable")
+        self.assertIsNone(pointer["sigUrl"])
+        self.assertIn("sigUrl", pointer)
+        self.assertEqual(pointer["sha256Url"], "https://downloads.example.invalid/iso/origaitv-1.0.0-x86_64.iso.sha256")
+        # The same ISO again, still unsigned.
+        self.publish("stable", "origaitv-1.0.0-x86_64", signed=False)
+        self.assertIsNone(self.pointer("stable")["sigUrl"])
+        # Then signed: the address is there.
+        self.publish("stable", "origaitv-1.0.0-x86_64")
+        self.assertEqual(self.pointer("stable")["sigUrl"], "https://downloads.example.invalid/iso/origaitv-1.0.0-x86_64.iso.sha256.sig")
+
+    def test_the_same_iso_again_unsigned_keeps_its_signature_address(self):
+        # Its signature stays in the bucket, so the channel's file still has it.
+        self.publish("stable", "origaitv-1.0.0-x86_64", b"one")
+        self.publish("stable", "origaitv-1.0.0-x86_64", b"one", signed=False)
+        self.assertEqual(self.pointer("stable")["sigUrl"], "https://downloads.example.invalid/iso/origaitv-1.0.0-x86_64.iso.sha256.sig")
+
+    def test_not_knowing_whether_its_signed_leaves_the_channels_file_where_it_was(self):
+        self.publish("stable", "origaitv-1.0.0-x86_64", b"one")
+        before = (self.bucket / "iso/stable.json").read_bytes()
+        iso, names = self.named("stable", "origaitv-1.0.0-x86_64", b"one", signed=False)
+        result = self.run_publish("upload", "stable", str(iso), str(names), FAKE_HEAD_FAILS="origaitv-1.0.0-x86_64.iso.sha256.sig")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("couldn't tell whether", result.stderr)
+        self.assertEqual((self.bucket / "iso/stable.json").read_bytes(), before)
 
     def test_the_channels_file_goes_up_last_after_the_sizes_are_checked(self):
         self.publish("stable", "origaitv-1.0.0-x86_64")
@@ -478,7 +534,12 @@ class IsoPublish(unittest.TestCase):
         self.assertEqual([call for call in self.calls("s3 cp") if call.endswith("/iso/origaitv-1.0.0-x86_64.iso")], [])
         self.assertEqual(self.deleted(), [])
         self.assertEqual(self.keys(), sorted(self.files("origaitv-1.0.0-x86_64") + ["iso/stable.json"]))
-        self.assertEqual((self.bucket / "iso/stable.json").read_bytes(), before)
+        # The channel's file gains the signature's address, and nothing else changes.
+        after = self.pointer("stable")
+        self.assertEqual(after.pop("sigUrl"), "https://downloads.example.invalid/iso/origaitv-1.0.0-x86_64.iso.sha256.sig")
+        before = json.loads(before)
+        self.assertIsNone(before.pop("sigUrl"))
+        self.assertEqual(after, before)
         # Its size is still asked for, so a live ISO that's gone short stops it.
         self.assertTrue(any("--key iso/origaitv-1.0.0-x86_64.iso " in call for call in self.calls("s3api head-object")))
         iso, names = self.named("stable", "origaitv-1.0.0-x86_64", b"one")
