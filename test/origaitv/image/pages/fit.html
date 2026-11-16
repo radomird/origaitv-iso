@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>fit</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { background: #fff; color: #111; font: 16px/1.5 sans-serif; }
+  .corner { position: fixed; width: 40px; height: 40px; background: #d00; }
+  .tl { left: 0; top: 0; }
+  .tr { right: 0; top: 0; }
+  .bl { left: 0; bottom: 0; }
+  .br { right: 0; bottom: 0; }
+  p { margin: 120px; }
+</style>
+</head>
+<body>
+<!-- A stand-in for a streaming service's page, with something in each corner,
+     as a service's logo and menus are. Its title says how big the page is in
+     its own pixels and whether it's asked to be full screen, for the image
+     check to read from the screen daemon. F asks for full screen, as a
+     player's button does. -->
+<div class="corner tl"></div>
+<div class="corner tr"></div>
+<div class="corner bl"></div>
+<div class="corner br"></div>
+<p>A service's page, with something in each corner.</p>
+<script>
+  function say() {
+    document.title = `fit ${innerWidth} ${innerHeight} ${document.fullscreenElement ? "full" : "page"}`;
+  }
+  addEventListener("keydown", (event) => {
+    if (event.key === "f") document.documentElement.requestFullscreen().catch(() => {}).finally(say);
+  });
+  say();
+  addEventListener("resize", say);
+  document.addEventListener("fullscreenchange", say);
+  setInterval(say, 250);
+</script>
+</body>
+</html>
