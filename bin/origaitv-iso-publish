@@ -23,10 +23,33 @@
 #           it. A build that's only named by its day and commit keeps that
 #           name: edge-2026.11.10-abc1234.
 #
-# <channel>.json is the link that doesn't change. It has the ISO's file
-# name, version, sha256 and address, and it's written last: only once the
-# ISO, its checksum and its signature are in the bucket and checked. If
-# anything before that fails, it still points at the ISO before.
+# <channel>.json is the link that doesn't change. It's written last: only
+# once the ISO, its checksum and its signature are in the bucket and
+# checked. If anything before that fails, it still points at the ISO
+# before. It looks like this, so a page that offers the download doesn't
+# have to guess any of it:
+#
+#   {
+#     "channel": "rc",
+#     "version": "1.0.0-rc3",
+#     "file": "origaitv-1.0.0-rc3-x86_64.iso",
+#     "size": 6712346624,
+#     "sha256": "<64 hex digits>",
+#     "url": "<ISO_URL>/iso/origaitv-1.0.0-rc3-x86_64.iso",
+#     "sha256Url": "<ISO_URL>/iso/origaitv-1.0.0-rc3-x86_64.iso.sha256",
+#     "sigUrl": "<ISO_URL>/iso/origaitv-1.0.0-rc3-x86_64.iso.sha256.sig"
+#   }
+#
+# size is the ISO's, in bytes, the size the bucket said it has. sha256Url
+# is the checksum file, and sigUrl the checksum's signature, or null when
+# the ISO went out without one. All three addresses start with ISO_URL, so
+# they follow it when it moves to another address.
+#
+# Before <channel>.json moves, the checksum is fetched from ISO_URL the
+# way a browser would, and has to come back as it went up. So ISO_URL
+# pointed at an address that doesn't serve the bucket yet (a custom domain
+# that isn't set up, say) stops the publish, and no link that goes
+# nowhere gets written.
 #
 #   names <channel> <iso.sha256> <dir>
 #       Checks the checksum file a build left beside its ISO
@@ -34,15 +57,18 @@
 #       keys. That file is what gets signed, before the upload.
 #   upload <channel> <iso> <dir>
 #       Checks the ISO against <dir>'s checksum, uploads the ISO and what's
-#       in <dir>, asks the bucket for each file's size and compares, and
-#       then moves <channel>.json to the new ISO.
+#       in <dir>, asks the bucket for each file's size and compares, fetches
+#       the checksum back from ISO_URL, the address people download from,
+#       and then moves <channel>.json to the new ISO.
 #       The ISO <channel>.json points at is never replaced: the same ISO
 #       again keeps its bytes and only gets its checksum and signature
 #       again, and a different ISO under that name is refused.
 #       A channel only moves forward: an ISO older than the one
 #       <channel>.json points at is refused, unless ORIGAITV_ISO_GO_BACK=1
 #       says going back is meant. And a <channel>.json that's there but
-#       doesn't name one of the channel's ISOs stops the upload.
+#       doesn't name one of the channel's ISOs stops the upload. An ISO
+#       under the name from before the rename to OrigaiTV counts as the
+#       channel's ISO here: it's the one this replaces.
 #   stale <channel>
 #       Prints what clean would remove, one key a line, and removes nothing.
 #   clean <channel>
@@ -52,8 +78,9 @@
 # checksums and signatures. They only ever name a key that is right under
 # iso/, carries that channel's kind of version (or is one of the channel's
 # files from when they were called origaitv-<channel>.iso), and isn't the ISO
-# <channel>.json points at. Another channel's files and anything else in
-# the bucket stay.
+# <channel>.json points at. That covers the channel's ISO from before the
+# rename, which carries the same version under the old name. Another
+# channel's files and anything else in the bucket stay.
 #
 # Nothing is removed unless the listing is whole. The bucket has to say the
 # listing isn't cut short, and the listing has to show what is known to be
@@ -112,6 +139,20 @@ channel_versions() {
 # Is $2 the file name of one of channel $1's ISOs?
 channel_iso() {
   [[ $2 =~ ^origaitv-$(channel_versions "$1")-x86_64\.iso$ ]]
+}
+
+# The ISOs published before the rename to OrigaiTV went by the old name,
+# with the same versions. The bucket's channel files still named them when
+# the rename landed, so the first publish of each channel after it has to
+# replace one. Such an ISO is only ever the one a channel had before: it's
+# replaced and then taken out like any other, and nothing new goes up
+# under that name. Once every channel's file names an origaitv- ISO, this
+# has nothing left to match.
+OLD_PREFIX=agentv-
+
+# Is $2 the file name of one of channel $1's ISOs from before the rename?
+channel_old_iso() {
+  [[ $2 =~ ^$OLD_PREFIX$(channel_versions "$1")-x86_64\.iso$ ]]
 }
 
 r2() {
@@ -255,8 +296,40 @@ same_size() {
   fi
 }
 
+# Is the checksum's signature in the bucket under $1? Prints true or false.
+# Not being able to tell stops the publish: the channel's file would
+# otherwise say there's no signature when there is one.
+signed_in_bucket() {
+  if aws s3api head-object --endpoint-url "$endpoint" --bucket "$R2_BUCKET" --key "$PREFIX$1" \
+    >/dev/null 2>"$WORK/sig.err"; then
+    echo true
+  elif grep -qE 'NoSuchKey|\(404\)|Not Found' "$WORK/sig.err"; then
+    echo false
+  else
+    cat "$WORK/sig.err" >&2
+    echo "origaitv-iso-publish: couldn't tell whether $PREFIX$1 is in the bucket, so $PREFIX$channel.json stays where it was" >&2
+    exit 1
+  fi
+}
+
+# Stops unless ISO_URL serves the file at $1 under key $2, byte for byte.
+# The checksum is a few bytes, so this asks for little. The query string
+# keeps a cache in front of the bucket from answering with an older copy.
+served_publicly() {
+  local url="${ISO_URL%/}/$PREFIX$2"
+  if ! curl -fsSL --retry 3 --retry-delay 5 --max-time 60 -o "$WORK/public" "$url?publish=$$" 2>"$WORK/public.err"; then
+    cat "$WORK/public.err" >&2
+    echo "origaitv-iso-publish: $url doesn't answer, so ISO_URL ($ISO_URL) isn't where people can download from yet, and $PREFIX$channel.json stays where it was" >&2
+    exit 1
+  fi
+  if ! cmp -s "$1" "$WORK/public"; then
+    echo "origaitv-iso-publish: $url isn't the file that was just uploaded, so ISO_URL ($ISO_URL) isn't this bucket's address, and $PREFIX$channel.json stays where it was" >&2
+    exit 1
+  fi
+}
+
 upload() {
-  local channel=$1 iso=$2 dir=$3 hash file version item live live_file live_version
+  local channel=$1 iso=$2 dir=$3 hash file version item live live_file live_version size signed sig
   local -a sums files
   channel_ok "$channel"
   : "${ISO_URL:?set ISO_URL to the public address of the bucket}"
@@ -294,7 +367,7 @@ upload() {
     # that can't be read that way isn't "nothing published yet": it's not
     # knowing what people download, and stale stops on it too.
     live_file=$(jq -r 'if type == "object" and (.file | type) == "string" then .file else "" end' "$WORK/live.json" 2>/dev/null || true)
-    if ! channel_iso "$channel" "$live_file"; then
+    if ! channel_iso "$channel" "$live_file" && ! channel_old_iso "$channel" "$live_file"; then
       echo "origaitv-iso-publish: the bucket's $PREFIX$channel.json doesn't name a $channel ISO, so it isn't known which ISO people download now, and nothing is uploaded. Look at the bucket first." >&2
       exit 1
     fi
@@ -310,6 +383,7 @@ upload() {
       # then remove the newer ISO. Going back on purpose is a run by hand
       # that says so (ORIGAITV_ISO_GO_BACK=1).
       live_version=${live_file#origaitv-}
+      live_version=${live_version#"$OLD_PREFIX"}
       live_version=${live_version%-x86_64.iso}
       if older "$version" "$live_version" && [[ ${ORIGAITV_ISO_GO_BACK:-} != "1" ]]; then
         echo "origaitv-iso-publish: the $channel ISO people download now is $live_version, and $version is older, so nothing is uploaded. A channel only moves forward. To go back on purpose, run the publish by hand and say so." >&2
@@ -348,13 +422,33 @@ upload() {
   for item in "${files[@]}"; do
     same_size "${item%%:*}" "${item##*:}"
   done
+  size=$(stat -c %s "$iso")
+  # And what people get from the address the channel's file will name.
+  served_publicly "$dir/$file.sha256" "$file.sha256"
+
+  # Whether the checksum is signed. With a signature this time, it is. The
+  # same ISO again without one keeps the signature it went out with, if it
+  # had one, so the bucket is asked.
+  if [[ -s $dir/$file.sha256.sig ]]; then
+    signed=true
+  elif [[ -n $live ]]; then
+    signed=$(signed_in_bucket "$file.sha256.sig")
+  else
+    signed=false
+  fi
+  sig=null
+  if [[ $signed == true ]]; then
+    sig=$(jq -n --arg url "${ISO_URL%/}/$PREFIX$file.sha256.sig" '$url')
+  fi
 
   # The link that doesn't change, last of all. Everything above is in the
   # bucket at its full size by now. A publish that failed before this line
   # leaves <channel>.json on the ISO before.
-  jq -n --arg channel "$channel" --arg version "$version" --arg file "$file" --arg sha256 "$hash" \
-    --arg url "${ISO_URL%/}/$PREFIX$file" \
-    '{channel: $channel, version: $version, file: $file, sha256: $sha256, url: $url}' >"$WORK/$channel.json"
+  jq -n --arg channel "$channel" --arg version "$version" --arg file "$file" --argjson size "$size" \
+    --arg sha256 "$hash" --arg url "${ISO_URL%/}/$PREFIX$file" --arg sums "${ISO_URL%/}/$PREFIX$file.sha256" \
+    --argjson sig "$sig" \
+    '{channel: $channel, version: $version, file: $file, size: $size, sha256: $sha256, url: $url,
+      sha256Url: $sums, sigUrl: $sig}' >"$WORK/$channel.json"
   put "$WORK/$channel.json" "$channel.json"
   same_size "$WORK/$channel.json" "$channel.json"
 
@@ -422,8 +516,9 @@ stale() {
     name=${BASH_REMATCH[1]}
     # Never the one the channel is on.
     [[ $name != "$current" ]] || continue
-    # This channel's, by its version or by the channel's old name.
-    if channel_iso "$channel" "$name" || [[ $name == "origaitv-$channel.iso" ]]; then
+    # This channel's, by its version (under the name from before the
+    # rename too) or by the channel's old name.
+    if channel_iso "$channel" "$name" || channel_old_iso "$channel" "$name" || [[ $name == "origaitv-$channel.iso" ]]; then
       gone+=("$key")
     fi
   done

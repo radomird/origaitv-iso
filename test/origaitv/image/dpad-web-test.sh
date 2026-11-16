@@ -7,7 +7,8 @@
 # OK on a link opens it, and Back goes back. Then a stand-in streaming
 # service's player, in the window and full screen: Back leaves it, and goes
 # on back from the title's page rather than into it again. The page's title
-# says what has focus, and Hyprland reads it from its window.
+# says what has focus, and Hyprland reads it from its window. Last, two
+# fingers on the phone scroll a page down and a row sideways (ADR-103).
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)/test/integration.d/base-test.sh"
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/tv.sh"
@@ -125,6 +126,41 @@ for mode in window full; do
   press back
   check "and Back goes on back from there, not into the player (title: $(title))" wait_title "^Home$named" 10
 done
+
+# T21.1 two fingers on the phone's pad: the page in front scrolls from its
+# middle, wherever the pointer is, and sideways the row across its middle.
+# Then the virtual device's own wheel, high-resolution, where the pointer is,
+# as pointer mode and a native window get it.
+ssh_guest "cat >/tmp/origaitv-dpad/scroll.html" <"$(dirname -- "${BASH_SOURCE[0]}")/pages/scroll.html"
+guest "origaitv screen open http://127.0.0.1:8766/scroll.html" >>"$RUN_DIR/screen.log" 2>&1 || true
+check "the scrolling stand-in opens in front (title: $(title))" wait_title "^scroll 0 0 0$named" 60
+guest "origaitv input move -4000 -4000" >>"$RUN_DIR/input.log" 2>&1 || true
+wheel() {
+  ssh_guest "ORIGAITV_PHONE_URL=$phone origaitv-phone-call $phone_key POST /api/phone/remote '$1'" >>"$RUN_DIR/remote.log" 2>&1 || true
+  sleep 0.7
+}
+# scrolled <field> <least> [<most>]: whether the title's number for the
+# page down (1), the row along (2) or the page along (3) comes to between
+# least and most pixels.
+scrolled() {
+  local started=$SECONDS value least=$2 most=${3:-999999}
+  while (( SECONDS - started < 5 )); do
+    value=$(title | sed -E "s/$named//" | awk -v f="$(( $1 + 1 ))" '{ print $f }')
+    if [[ $value =~ ^[0-9]+$ ]] && (( value >= least && value <= most )); then
+      return 0
+    fi
+    sleep 0.3
+  done
+  return 1
+}
+wheel '{"wheel":[0,200]}'
+check "two fingers down scroll the page down, with the pointer in a corner (title: $(title))" scrolled 1 150
+wheel '{"wheel":[500,0]}'
+check "and sideways slide the row across the page's middle, not the page (title: $(title))" scrolled 2 300
+check "the page itself stays where it was across (title: $(title))" scrolled 3 0 0
+guest "origaitv input move 900 500" >>"$RUN_DIR/input.log" 2>&1 || true
+guest "origaitv input wheel 0 1200" >>"$RUN_DIR/input.log" 2>&1 || true
+check "the device's wheel, high-resolution, scrolls back up where the pointer is (title: $(title))" scrolled 1 0 99
 
 guest "journalctl --user -b --no-pager -u origaitv-screen" >"$RUN_DIR/screen-daemon.log" 2>&1 || true
 check "the screen daemon gave the page the d-pad's ring and Back" bash -c "! grep -q \"the d-pad's ring and Back aren't\" '$RUN_DIR/screen-daemon.log'"

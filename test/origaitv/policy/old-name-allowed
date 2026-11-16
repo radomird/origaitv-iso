@@ -7,3 +7,8 @@ AGENTV_SIGNING_KEY
 
 # The image harness, which refuses a night's box from before the rename.
 ^test/origaitv/image/up-to-date:.*\b(agentv package|pacman -Q agentv)\b
+
+# The publish script and its tests, which take out the ISOs that went by the
+# old name before the rename.
+^bin/origaitv-iso-publish:OLD_PREFIX=agentv-$
+^test/origaitv/unit/test_iso_publish\.py:OLD = "agentv"$

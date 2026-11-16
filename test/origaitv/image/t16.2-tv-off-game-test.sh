@@ -214,7 +214,7 @@ check "the ordinary app opens in front" wait_front web 60
 guest "origaitv screen home" >>"$RUN_DIR/screen.log" 2>&1 || true
 wait_front home 10 || true
 guest "origaitv screen app origaitv.steam" >>"$RUN_DIR/screen.log" 2>&1 || true
-check "Steam's stand-in opens in front, in its gamescope" wait_front steam 90
+check "Steam's stand-in opens in front, in its gamescope" wait_front game 90
 check "and it runs" steam_running
 guest "origaitv screen home" >>"$RUN_DIR/screen.log" 2>&1 || true
 check "home is in front again" wait_front home 10
@@ -266,18 +266,18 @@ check "and the game beside it is still the same page" test "$(kept token)" = "$t
 guest "origaitv screen open $page" >>"$RUN_DIR/screen.log" 2>&1 || true
 check "the ordinary app opens again" wait_front web 60
 guest "origaitv screen app origaitv.steam" >>"$RUN_DIR/screen.log" 2>&1 || true
-check "Steam comes in front again" wait_front steam 15
+check "Steam comes in front again" wait_front game 15
 guest "origaitv screen tv off" >>"$RUN_DIR/screen.log" 2>&1 || true
 log "Waiting out the 2 minutes, with Steam in front"
 check "T16.2 after 2 minutes the ordinary app is closed again, and Steam isn't" until_status '[.open[].id] == ["origaitv.steam"]' 150
 check "T16.2 and the output goes off" until_status '.output == "off"' 30
 screen_status >"$RUN_DIR/status-off-steam.json"
-check "T16.2 Steam is still in front, with no ambient screen" jq -e '.ambient == false and .front.role == "steam"' "$RUN_DIR/status-off-steam.json"
+check "T16.2 Steam is still in front, with no ambient screen" jq -e '.ambient == false and .front.role == "game"' "$RUN_DIR/status-off-steam.json"
 check "T16.2 Steam's stand-in still runs" steam_running
 check "T16.2 the game is still open behind home, the same page" test "$(kept token)" = "$token"
 guest "origaitv screen tv on" >>"$RUN_DIR/screen.log" 2>&1 || true
 check "T16.2 the TV back on, the output is on" until_status '.output == "on" and .tv == "on"' 20
-check "T16.2 and Steam is in front" test "$(front '[.front.role, .ambient] | map(tostring) | join(" ")')" = "steam false"
+check "T16.2 and Steam is in front" test "$(front '[.front.role, .ambient] | map(tostring) | join(" ")')" = "game false"
 capture_console "success-t16.2-steam"
 
 # Nothing of the stand-ins is left behind.
