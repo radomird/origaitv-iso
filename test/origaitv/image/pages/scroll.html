@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>scroll 0 0 0</title>
+<style>
+  body { margin: 0; background: #111; color: #eee; font: 20px sans-serif; }
+  .top { height: 35vh; }
+  .row { display: flex; gap: 24px; overflow-x: auto; scrollbar-width: none; padding: 24px 48px; }
+  .tile { flex: 0 0 360px; height: 40vh; border-radius: 8px; background: #2a2a3a; }
+  .rest { height: 300vh; }
+</style>
+</head>
+<body>
+<!-- A page taller and wider than the screen, with a row across its middle
+     that slides sideways. Its title says how far the page has scrolled down,
+     and the row along, for the image check to read from Hyprland. -->
+<div class="top"></div>
+<div class="row" id="row"></div>
+<div class="rest"></div>
+<script>
+  const row = document.getElementById("row");
+  for (let n = 1; n <= 12; n++) {
+    const tile = document.createElement("div");
+    tile.className = "tile";
+    row.append(tile);
+  }
+  const say = () => (document.title = `scroll ${Math.round(scrollY)} ${Math.round(row.scrollLeft)} ${Math.round(scrollX)}`);
+  addEventListener("scroll", say, { capture: true, passive: true });
+</script>
+</body>
+</html>
