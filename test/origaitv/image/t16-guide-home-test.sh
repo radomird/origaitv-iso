@@ -123,20 +123,20 @@ sleep 5
 
 guest "origaitv screen open steam" >>"$RUN_DIR/screen.log" 2>&1 || true
 up=no
-wait_front steam 90 && up=yes
+wait_front game 90 && up=yes
 check "the stand-in Steam opens in front" test "$up" = yes
 sleep 3
 capture_console "success-t16-guide-home-steam"
 
 # A short press is Steam's own.
 pad guide 0.15
-check "T16 a short press of the guide button leaves Steam in front" stays_front steam 4
+check "T16 a short press of the guide button leaves Steam in front" stays_front game 4
 # Let go before the second is up, it's still a press.
 pad guide 0.5
-check "T16 the guide button let go before a second leaves Steam in front" stays_front steam 4
+check "T16 the guide button let go before a second leaves Steam in front" stays_front game 4
 # Another button held isn't the guide button.
 pad a 1.6
-check "T16 holding another button leaves Steam in front" stays_front steam 4
+check "T16 holding another button leaves Steam in front" stays_front game 4
 check "nothing went home for a held guide button so far" test "$(held_count)" = "0"
 
 # Held: home comes in front at the one-second mark, with the button still
@@ -151,7 +151,7 @@ check "the button was still down when home came in front" test "${released:-0}" 
 capture_console "success-t16-guide-home-home"
 check "T16 Steam keeps running behind home" game_running
 check "T16 home lists Steam as a game that's open" \
-  test "$(jq -c '[.open[] | select(.role == "steam")] | length' <<<"$(screen_status)" 2>/dev/null)" = "1"
+  test "$(jq -c '[.open[] | select(.role == "game")] | length' <<<"$(screen_status)" 2>/dev/null)" = "1"
 # The rest of the hold, and its release, add nothing.
 sleep 8
 check "the hold went home once" test "$(held_count)" = "1"
@@ -164,7 +164,7 @@ check "and a hold there isn't one from a game" test "$(held_count)" = "1"
 
 # Opening Steam again brings the same one back.
 guest "origaitv screen open steam" >>"$RUN_DIR/screen.log" 2>&1 || true
-check "T16 opening Steam again brings it back" wait_front steam 15
+check "T16 opening Steam again brings it back" wait_front game 15
 check "the same Steam, not a second one" test "$(ssh_guest "pgrep -xc gamescope" 2>/dev/null || true)" = "1"
 
 # A second hold goes home again.
@@ -175,11 +175,11 @@ sleep 2
 # The other ways home from Steam, as they were: a keyboard's Home key, and a
 # remote's Home button, which is the phone's too.
 guest "origaitv screen open steam" >>"$RUN_DIR/screen.log" 2>&1 || true
-wait_front steam 15 || true
+wait_front game 15 || true
 guest "origaitv input key home-key" >>"$RUN_DIR/input.log" 2>&1 || true
 check "a keyboard's Home key goes home from Steam" wait_front home 10
 guest "origaitv screen open steam" >>"$RUN_DIR/screen.log" 2>&1 || true
-wait_front steam 15 || true
+wait_front game 15 || true
 guest "origaitv input key home" >>"$RUN_DIR/input.log" 2>&1 || true
 check "a remote's Home button, the phone's too, goes home from Steam" wait_front home 10
 check "Steam is still running after all of it" game_running
@@ -187,12 +187,12 @@ check "Steam is still running after all of it" game_running
 # A gamepad that goes away while its guide button is down leaves nothing to
 # go home later.
 guest "origaitv screen open steam" >>"$RUN_DIR/screen.log" 2>&1 || true
-wait_front steam 15 || true
+wait_front game 15 || true
 before=$(held_count)
 pad guide 30
 sleep 0.3
 ssh_guest "pkill -f origaitv-gamepad.p[y]" || true
-check "T16 a gamepad that goes away mid-hold leaves Steam in front" stays_front steam 5
+check "T16 a gamepad that goes away mid-hold leaves Steam in front" stays_front game 5
 check "and nothing went home for it" test "$(held_count)" = "$before"
 
 ssh_guest "cat /tmp/origaitv-gamepad.log" >"$RUN_DIR/gamepad.log" 2>&1 || true
