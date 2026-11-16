@@ -42,7 +42,9 @@
 #       A channel only moves forward: an ISO older than the one
 #       <channel>.json points at is refused, unless ORIGAITV_ISO_GO_BACK=1
 #       says going back is meant. And a <channel>.json that's there but
-#       doesn't name one of the channel's ISOs stops the upload.
+#       doesn't name one of the channel's ISOs stops the upload. An ISO
+#       under the name from before the rename to OrigaiTV counts as the
+#       channel's ISO here: it's the one this replaces.
 #   stale <channel>
 #       Prints what clean would remove, one key a line, and removes nothing.
 #   clean <channel>
@@ -52,8 +54,9 @@
 # checksums and signatures. They only ever name a key that is right under
 # iso/, carries that channel's kind of version (or is one of the channel's
 # files from when they were called origaitv-<channel>.iso), and isn't the ISO
-# <channel>.json points at. Another channel's files and anything else in
-# the bucket stay.
+# <channel>.json points at. That covers the channel's ISO from before the
+# rename, which carries the same version under the old name. Another
+# channel's files and anything else in the bucket stay.
 #
 # Nothing is removed unless the listing is whole. The bucket has to say the
 # listing isn't cut short, and the listing has to show what is known to be
@@ -112,6 +115,20 @@ channel_versions() {
 # Is $2 the file name of one of channel $1's ISOs?
 channel_iso() {
   [[ $2 =~ ^origaitv-$(channel_versions "$1")-x86_64\.iso$ ]]
+}
+
+# The ISOs published before the rename to OrigaiTV went by the old name,
+# with the same versions. The bucket's channel files still named them when
+# the rename landed, so the first publish of each channel after it has to
+# replace one. Such an ISO is only ever the one a channel had before: it's
+# replaced and then taken out like any other, and nothing new goes up
+# under that name. Once every channel's file names an origaitv- ISO, this
+# has nothing left to match.
+OLD_PREFIX=agentv-
+
+# Is $2 the file name of one of channel $1's ISOs from before the rename?
+channel_old_iso() {
+  [[ $2 =~ ^$OLD_PREFIX$(channel_versions "$1")-x86_64\.iso$ ]]
 }
 
 r2() {
@@ -294,7 +311,7 @@ upload() {
     # that can't be read that way isn't "nothing published yet": it's not
     # knowing what people download, and stale stops on it too.
     live_file=$(jq -r 'if type == "object" and (.file | type) == "string" then .file else "" end' "$WORK/live.json" 2>/dev/null || true)
-    if ! channel_iso "$channel" "$live_file"; then
+    if ! channel_iso "$channel" "$live_file" && ! channel_old_iso "$channel" "$live_file"; then
       echo "origaitv-iso-publish: the bucket's $PREFIX$channel.json doesn't name a $channel ISO, so it isn't known which ISO people download now, and nothing is uploaded. Look at the bucket first." >&2
       exit 1
     fi
@@ -310,6 +327,7 @@ upload() {
       # then remove the newer ISO. Going back on purpose is a run by hand
       # that says so (ORIGAITV_ISO_GO_BACK=1).
       live_version=${live_file#origaitv-}
+      live_version=${live_version#"$OLD_PREFIX"}
       live_version=${live_version%-x86_64.iso}
       if older "$version" "$live_version" && [[ ${ORIGAITV_ISO_GO_BACK:-} != "1" ]]; then
         echo "origaitv-iso-publish: the $channel ISO people download now is $live_version, and $version is older, so nothing is uploaded. A channel only moves forward. To go back on purpose, run the publish by hand and say so." >&2
@@ -422,8 +440,9 @@ stale() {
     name=${BASH_REMATCH[1]}
     # Never the one the channel is on.
     [[ $name != "$current" ]] || continue
-    # This channel's, by its version or by the channel's old name.
-    if channel_iso "$channel" "$name" || [[ $name == "origaitv-$channel.iso" ]]; then
+    # This channel's, by its version (under the name from before the
+    # rename too) or by the channel's old name.
+    if channel_iso "$channel" "$name" || channel_old_iso "$channel" "$name" || [[ $name == "origaitv-$channel.iso" ]]; then
       gone+=("$key")
     fi
   done
