@@ -22,6 +22,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 PUBLISH = ROOT / "bin" / "origaitv-iso-publish"
 
+# The name the ISOs went by before the rename to OrigaiTV.
+OLD = "agentv"
+
 # The stand-in: FAKE_BUCKET is the bucket, FAKE_LOG every call it got, and
 # FAKE_STATE what it remembers between calls: how many times each key was
 # tried, and the multipart uploads left open.
@@ -601,6 +604,107 @@ class IsoPublish(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.log.read_text(), "")
 
+    # --- the ISOs from before the rename ----------------------------------
+
+    def published_before_the_rename(self, channel, version, signed=True):
+        """The bucket as the rename left it: the channel's file names an ISO
+        under the old name, and that ISO is there with what goes with it."""
+        name = f"{OLD}-{version}-x86_64"
+        digest = hashlib.sha256(b"old").hexdigest()
+        self.put(f"iso/{name}.iso", b"old")
+        self.put(f"iso/{name}.iso.sha256", f"{digest}  {name}.iso\n".encode())
+        if signed:
+            self.put(f"iso/{name}.iso.sha256.sig", b"an old signature")
+        pointer = {
+            "channel": channel,
+            "version": version,
+            "file": f"{name}.iso",
+            "sha256": digest,
+            "url": f"https://downloads.example.invalid/iso/{name}.iso",
+        }
+        self.put(f"iso/{channel}.json", json.dumps(pointer, indent=2).encode())
+        return self.files(name, signed)
+
+    def test_a_channels_file_naming_an_iso_from_before_the_rename_is_replaced(self):
+        # What the bucket had on 2026-11-16: rc.json on rc2 and edge.json on a
+        # night's build, both under the old name. The next publish of each
+        # moves the channel on, and the clean-up takes the old ISO out.
+        for channel, old, new, signed in (
+            ("rc", "1.0.0-rc2", "1.0.0-rc3", True),
+            ("edge", "0.2.0.r831.g59f9f8164", "0.2.0.r840.gabcdef012", False),
+            ("stable", "0.1.4", "1.0.0", True),
+        ):
+            old_keys = self.published_before_the_rename(channel, old, signed)
+            self.log.write_text("")
+            result = self.publish(channel, f"origaitv-{new}-x86_64", b"new")
+            self.assertEqual(result.stdout.strip(), f"https://downloads.example.invalid/iso/origaitv-{new}-x86_64.iso")
+            self.assertEqual(self.pointer(channel)["file"], f"origaitv-{new}-x86_64.iso")
+            self.assertEqual(self.pointer(channel)["version"], new)
+            # Nothing of the old ISO went before the channel moved.
+            self.assertEqual(self.deleted(), [])
+            for key in old_keys:
+                self.assertIn(key, self.keys())
+
+            stale = self.run_publish("stale", channel)
+            self.assertEqual(stale.returncode, 0, stale.stderr)
+            self.assertEqual([line.strip() for line in stale.stdout.splitlines()[1:]], sorted(old_keys))
+            clean = self.run_publish("clean", channel)
+            self.assertEqual(clean.returncode, 0, clean.stderr)
+            self.assertEqual(sorted(self.deleted()), sorted(old_keys))
+            self.assertEqual(self.keys(), sorted(self.files(f"origaitv-{new}-x86_64") + [f"iso/{channel}.json"]))
+            shutil.rmtree(self.bucket)
+            self.bucket.mkdir()
+
+    def test_an_iso_from_before_the_rename_still_only_moves_forward(self):
+        for channel, live, older in (
+            ("rc", "1.0.0-rc2", "1.0.0-rc1"),
+            ("edge", "0.2.0.r831.g59f9f8164", "0.2.0.r830.gabcdef012"),
+        ):
+            self.published_before_the_rename(channel, live)
+            before = {key: (self.bucket / key).read_bytes() for key in self.keys()}
+            self.log.write_text("")
+            iso, names = self.named(channel, f"origaitv-{older}-x86_64", b"older")
+            result = self.run_publish("upload", channel, str(iso), str(names))
+            self.assertNotEqual(result.returncode, 0, f"{channel}: {older} over {live}")
+            self.assertIn(f"is {live}, and {older} is older", result.stderr)
+            self.assertEqual(self.calls("s3 cp"), [])
+            self.assertEqual({key: (self.bucket / key).read_bytes() for key in self.keys()}, before)
+            # Going back on purpose still works.
+            result = self.run_publish("upload", channel, str(iso), str(names), ORIGAITV_ISO_GO_BACK="1")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(self.pointer(channel)["version"], older)
+            shutil.rmtree(self.bucket)
+            self.bucket.mkdir()
+
+    def test_another_channels_iso_from_before_the_rename_still_stops_the_upload(self):
+        # The old name is accepted only with the channel's own kind of version.
+        for channel, theirs in (("stable", "1.0.0-rc2"), ("rc", "0.2.0.r831.g59f9f8164"), ("edge", "1.0.0")):
+            self.put(f"iso/{channel}.json", json.dumps({"file": f"{OLD}-{theirs}-x86_64.iso"}).encode())
+            mine = {"stable": "1.0.0", "rc": "1.0.0-rc3", "edge": "0.2.0.r840.gabcdef012"}[channel]
+            self.log.write_text("")
+            iso, names = self.named(channel, f"origaitv-{mine}-x86_64")
+            result = self.run_publish("upload", channel, str(iso), str(names))
+            self.assertNotEqual(result.returncode, 0, channel)
+            self.assertIn(f"doesn't name a {channel} ISO", result.stderr)
+            self.assertEqual(self.calls("s3 cp"), [])
+
+    def test_nothing_new_goes_up_under_the_old_name(self):
+        for channel, version in (("stable", "1.0.0"), ("rc", "1.0.0-rc3"), ("edge", "0.2.0.r840.gabcdef012")):
+            iso = self.built(f"{OLD}-{version}-x86_64")
+            names = self.work / f"names-old-{channel}"
+            result = self.run_publish("names", channel, f"{iso}.sha256", str(names))
+            self.assertNotEqual(result.returncode, 0, channel)
+            self.assertFalse(names.exists())
+
+    def test_stale_waits_for_the_channel_to_move_off_the_old_name(self):
+        # Before the first publish after the rename, the channel's file still
+        # names the old ISO. stale and clean only follow an upload, which
+        # moves it, so here they stop and remove nothing.
+        for channel, version in (("rc", "1.0.0-rc2"), ("edge", "0.2.0.r831.g59f9f8164")):
+            self.published_before_the_rename(channel, version)
+        self.log.write_text("")
+        self.refused("nothing is removed", "rc", "edge")
+
     # --- stale and clean ---------------------------------------------------
 
     def fill(self):
@@ -626,6 +730,10 @@ class IsoPublish(unittest.TestCase):
         }
         for channel in self.before:
             self.before[channel] += self.files(f"origaitv-{channel}") + [f"iso/origaitv-{channel}.version"]
+        # Each channel's ISO from before the rename, under the old name.
+        self.before["stable"] += self.files(f"{OLD}-0.1.4-x86_64")
+        self.before["rc"] += self.files(f"{OLD}-1.0.0-rc2-x86_64")
+        self.before["edge"] += self.files(f"{OLD}-0.2.0.r831.g59f9f8164-x86_64", signed=False)
         self.others = [
             "iso/README.txt",
             "iso/notes.version.txt",
@@ -640,6 +748,9 @@ class IsoPublish(unittest.TestCase):
             "backgrounds/origaitv-0.1.4-x86_64.iso",
             "index.html",
             "isos/origaitv-0.1.4-x86_64.iso",
+            f"iso/{OLD}-1.0.0-aarch64.iso",
+            f"iso/{OLD}-beta.iso",
+            f"backgrounds/{OLD}-1.0.0-rc2-x86_64.iso",
         ]
         for keys in (*self.before.values(), self.others):
             for key in keys:
