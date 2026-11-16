@@ -45,8 +45,10 @@ hyprland_pid() {
 hyprland_args() {
   ssh_guest "tr '\\0' ' ' </proc/\$(pgrep -xn Hyprland)/cmdline" 2>/dev/null || true
 }
+# The monitors a window can go on, as the screen daemon counts them: not
+# disabled, and not Hyprland's own stand-in.
 monitors() {
-  guest_hyprctl "-j monitors" 2>/dev/null | jq -r 'length' 2>/dev/null || true
+  guest_hyprctl "-j monitors" 2>/dev/null | jq -r '[.[] | select(.disabled != true and .name != "FALLBACK")] | length' 2>/dev/null || true
 }
 no_monitor() {
   [[ $(monitors) == "0" ]]
@@ -108,6 +110,7 @@ check "the TV has a monitor to take away ($output)" test -n "$output"
 since=$(ssh_guest "date +%s" 2>/dev/null | tr -d '\r' || true)
 hypr_eval "hl.monitor({ output = \"$output\", disabled = true })" >>"$RUN_DIR/monitor.log" 2>&1 || true
 check "T22.4 with the monitor gone, Hyprland has none" wait_for 15 no_monitor
+guest_hyprctl "-j monitors all" >"$RUN_DIR/monitors-gone.json" 2>&1 || true
 
 # What killed Hyprland on the NUC: input on the seat, as the overlay says it,
 # ending the ambient screen, which put the app back in front. And a second
@@ -134,10 +137,12 @@ fi
 log "Back with: $rule"
 hypr_eval "$rule" >>"$RUN_DIR/monitor.log" 2>&1 || true
 check "T22.4 with the monitor back, Hyprland has it again" wait_for 20 a_monitor
+guest_hyprctl "-j monitors all" >"$RUN_DIR/monitors-back.json" 2>&1 || true
 check "T22.4 the app is in front again, inside the margin" wait_for 20 app_inside
 capture_console "success-T22.4-back"
 guest "journalctl --user -u origaitv-screen --since @${since:-0} --no-pager" >"$RUN_DIR/origaitv-screen-back.log" 2>&1 || true
-check "T22.4 the screen daemon put it there when the monitor came" grep -q "came after the TV's output was gone; web" "$RUN_DIR/origaitv-screen-back.log"
+check "T22.4 the screen daemon heard the monitor come back" grep -q "Hyprland: monitoradded $output" "$RUN_DIR/origaitv-screen-back.log"
+check "T22.4 and put the app there when it came" grep -q "came after the TV's output was gone; web" "$RUN_DIR/origaitv-screen-back.log"
 check "T22.4 on the same Hyprland, with no crash" test "$(hyprland_pid)" = "$pid"
 
 # Hyprland crashes, after it's run a while: it starts again as the TV.
