@@ -8,8 +8,8 @@
 # each case is a sign-in the check judges by itself.
 #
 # - Claude, its token lapsed, with the last numbers kept in its cache: the
-#   check prints them, marked stale ("Limits paused"). They aren't today's,
-#   so the TV gets none, and says it's using the plan.
+#   check prints them, marked stale ("Limits paused"). The TV gets them with
+#   when they were read, to show "As of 2 hours ago" under the bars.
 # - Claude, its sign-in run out: the TV is told to sign in again.
 # - Codex, never signed in: no numbers.
 #
@@ -71,14 +71,18 @@ check "Omarchy's own usage checks, and their collectors, are where the plan's se
 use_plan claude
 check "Claude's plan is picked, with its terms accepted on the phone" jq -e '.ok == true' "$RUN_DIR/accepted-claude.json"
 
-# The token lapsed, the sign-in still good: old numbers, and no answer.
+# The token lapsed, the sign-in still good: the kept numbers, with when they
+# were read.
 claude_sign_in 86400000
 usage >"$RUN_DIR/paused.json" 2>&1 || true
 journal
 ssh_guest "sudo find $CACHE -maxdepth 1 -name 'claude-scan-*.json' -user origaitv-builder -newer $HOME_DIR/.claude/.credentials.json" >"$RUN_DIR/scan-cache.txt" 2>&1 || true
 
-check "T19.2 the real Claude check ran in the plan's service and printed its kept numbers as stale, which the service didn't pass on" grep -q "usage claude: old numbers" "$RUN_DIR/journal.log"
-check "T19.2 the TV gets no numbers, so it says it's using the plan" jq -e '.plan == true and .usage == null' "$RUN_DIR/paused.json"
+check "T19.2 the real Claude check ran in the plan's service and said its limits are paused, with the numbers it kept" grep -q "usage claude: kept numbers, limits paused" "$RUN_DIR/journal.log"
+# By the box's own clock, which the kept numbers were stamped by.
+read_two_hours_ago() { jq -e --argjson now "$(ssh_guest 'date +%s')" '(.usage.asOf | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) as $at | ($now - $at) > 6600 and ($now - $at) < 8400' "$RUN_DIR/paused.json"; }
+check "T19.2 the TV gets the kept 5 hours and week, and when they were read" jq -e '.plan == true and ([.usage.windows[] | [.window, .percent]] == [["hours", 23], ["week", 41]])' "$RUN_DIR/paused.json"
+check "read two hours ago, when the check kept them" read_two_hours_ago
 check "T19.2 the check loaded Omarchy's collectors and wrote its own cache in the builder's home, where the service lets it" test -s "$RUN_DIR/scan-cache.txt"
 
 # The sign-in ran out: the TV is told to sign in again, with no numbers.
