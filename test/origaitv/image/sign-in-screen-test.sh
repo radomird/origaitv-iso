@@ -76,8 +76,14 @@ no_signin_bar() {
   ! signin_bar
 }
 
+# Where an app goes once it's signed in: full screen, or maximized inside
+# Fit to screen's margin while there is one. A release from before it says
+# no margin.
 page_fullscreen() {
-  guest_hyprctl "-j clients" 2>/dev/null | jq -e '.[] | select(.workspace.name == "1" and .fullscreen == 2)' >/dev/null
+  local margin want=2
+  margin=$(ssh_guest "curl -fsS --max-time 3 http://127.0.0.1:3000/api/display" 2>/dev/null | jq -r '.margin // 0' 2>/dev/null || echo 0)
+  [[ ${margin:-0} != 0 ]] && want=1
+  guest_hyprctl "-j clients" 2>/dev/null | jq -e --argjson want "$want" '.[] | select(.workspace.name == "1" and .fullscreen == $want)' >/dev/null
 }
 
 signs_in() {
@@ -159,7 +165,7 @@ done
 check "once the form is sent, the app says it's signed in, and the tile stops saying Sign in" test -n "$done_at"
 sleep 2
 check "the sign-in bar is gone" no_signin_bar
-check "and the page is full screen again" page_fullscreen
+check "and the page is back where an app goes: full screen, or inside Fit to screen's margin" page_fullscreen
 
 guest "journalctl --user -b --no-pager -u origaitv-screen -u origaitv-input" >"$RUN_DIR/tv-session.log" 2>&1 || true
 check "the screen daemon says the sign-in is over because it signed in" grep -q "sign-in to $id over: signed in" "$RUN_DIR/tv-session.log"

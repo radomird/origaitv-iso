@@ -12,6 +12,8 @@
 #   - a size change applies within a second;
 #   - and a new TV session starts at the size picked, from the line the
 #     screen daemon kept, without setting it again.
+# Fit to screen's margin, on by default, is T22.2's: this check takes it
+# away first, so a service page is the canvas's whole width.
 # About five minutes, most of it the boot and one switch to Omarchy's
 # desktop and back.
 
@@ -52,6 +54,10 @@ for _ in $(seq 1 30); do
 done
 check "T4.2 with the sizes on, the TV runs at 3840 x 2160 at scale 2, standard's (it runs $(monitor '"\(.width)x\(.height) at \(.scale)"'))" \
   test "$(monitor '"\(.width)x\(.height) \(.scale)"')" = "3840x2160 2"
+
+# No margin, so a service page fills the screen, as before Fit to screen. A
+# release from before it refuses the margin, and has none.
+ssh_guest "curl -fsS -X PUT -H 'Content-Type: application/json' -d '{\"margin\":0}' --max-time 10 http://127.0.0.1:3000/api/display" >"$RUN_DIR/put-margin.json" 2>&1 || true
 
 # The stand-in service page, served on the box itself.
 ssh_guest "mkdir -p /tmp/origaitv-sizes && cat >/tmp/origaitv-sizes/index.html" <"$(dirname -- "${BASH_SOURCE[0]}")/pages/sizes.html"
@@ -127,7 +133,7 @@ check "T4.2 a toast scales with the size: on the TV it's ${toast_tv[larger]} px 
 # already there and sets nothing.
 ssh_guest "curl -fsS -X PUT -H 'Content-Type: application/json' -d '{\"size\":\"larger\"}' --max-time 10 http://127.0.0.1:3000/api/display" >"$RUN_DIR/put-again.json" 2>&1 || true
 kept=$(guest "cat \"\${XDG_STATE_HOME:-\$HOME/.local/state}/origaitv/display\"" 2>/dev/null | tr -d '\r' || true)
-check "T4.2 the screen daemon keeps the line the next session starts at (it's: $kept)" grep -Eq '^[A-Za-z0-9._-]+ 3840x2160@[0-9.]+ 2\.4$' <<<"$kept"
+check "T4.2 the screen daemon keeps the line the next session starts at (it's: $kept)" grep -Eq '^[A-Za-z0-9._-]+ 3840x2160@[0-9.]+ 2\.4( 0 0)?$' <<<"$kept"
 guest "origaitv desktop" >>"$RUN_DIR/switch.log" 2>&1 || true
 wait_desktop 60 >/dev/null || true
 since=$(ssh_guest "date +%s" 2>/dev/null | tr -d '\r' || true)
