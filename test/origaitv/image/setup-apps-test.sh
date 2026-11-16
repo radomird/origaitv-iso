@@ -68,7 +68,8 @@ check "the official apps for photos come from the signed index, in the goal's or
   until_json /api/setup/apps '[.for[].id] as $f | ($f | index("origaitv.jellyfin")) == 0 and ($f | index("origaitv.immich")) != null and ($f == (["origaitv.jellyfin", "origaitv.plex", "origaitv.immich"] | map(select(. as $id | $f | index($id) != null)))) and (.error == null)' 120
 ssh_guest "curl -fsS http://127.0.0.1:3000/api/setup/apps" >"$RUN_DIR/setup-apps.json" 2>&1 || true
 log "the goal's apps: $(jq -c '[.for[].id]' "$RUN_DIR/setup-apps.json" 2>/dev/null)"
-check "Steam and the built-in Music are under more" jq -e '[.more[].id] | index("origaitv.steam") != null and index("origaitv.music") != null' "$RUN_DIR/setup-apps.json"
+check "the built-in Music is under more" jq -e '[.more[].id] | index("origaitv.music") != null' "$RUN_DIR/setup-apps.json"
+check "and Steam is in the games group, being a game, not under more" jq -e '([.games[]?.id] | index("origaitv.steam") != null) and ([.more[].id] | index("origaitv.steam") == null)' "$RUN_DIR/setup-apps.json"
 check "the apps step is on the TV (OCR)" ocr_finds success-setup-apps "pick your apps|build your own|add your own" 30
 capture_console "success-setup-apps"
 
