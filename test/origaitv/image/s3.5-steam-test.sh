@@ -1,6 +1,7 @@
 #!/bin/bash
 #
-# S3.5: Steam opens full screen and returns to the home screen on quit. Steam's
+# S3.5: Steam opens filling the screen, inside Fit to screen's margin while
+# there is one, and returns to the home screen on quit. Steam's
 # app, origaitv.steam from origaitv-apps, goes on the box where an install from the
 # index puts it, and opening it starts Steam the box's own way: Steam Big
 # Picture in a gamescope of its own, at the TV's mode (ADR-031). Home keeps the
@@ -155,15 +156,19 @@ wait_front() {
   return 1
 }
 
-# Whether Steam is in front and fills the screen.
+# Whether Steam is in front and fills the screen: all of it, or what's
+# inside Fit to screen's margin while there is one, as every app but home
+# does. A release from before Fit to screen says no margin.
 fills_screen() {
-  local address monitor client
-  [[ $(front '.front.role // ""') == "steam" ]] || return 1
+  local address monitor client inset
+  [[ $(front '.front.role // ""') == "game" ]] || return 1
   address=$(front '.front.address // ""')
   monitor=$(guest_hyprctl "-j monitors" 2>/dev/null | jq -c '.[0] | [(.width / .scale | floor), (.height / .scale | floor)]' 2>/dev/null || true)
   client=$(guest_hyprctl "-j clients" 2>/dev/null | jq -c --arg address "$address" '.[] | select(.address == $address) | {at, size}' 2>/dev/null || true)
-  echo "monitor $monitor, window $client" >>"$RUN_DIR/geometry.log"
-  [[ -n $client ]] && jq -e --argjson monitor "${monitor:-null}" '$monitor != null and .at == [0, 0] and .size == $monitor' <<<"$client" >/dev/null
+  inset=$(ssh_guest "curl -fsS --max-time 3 http://127.0.0.1:3000/api/display" 2>/dev/null | jq -c '.inset // [0, 0]' 2>/dev/null || echo "[0,0]")
+  echo "monitor $monitor, margin ${inset:-[0,0]}, window $client" >>"$RUN_DIR/geometry.log"
+  [[ -n $client ]] && jq -e --argjson monitor "${monitor:-null}" --argjson inset "${inset:-[0,0]}" \
+    '$monitor != null and .at == $inset and .size == [$monitor[0] - 2 * $inset[0], $monitor[1] - 2 * $inset[1]]' <<<"$client" >/dev/null
 }
 
 # The game running behind home: gamescope and the stand-in's window. The
@@ -182,11 +187,11 @@ said() {
 
 guest "origaitv screen app origaitv.steam" >>"$RUN_DIR/screen.log" 2>&1 || true
 up=no
-wait_front steam 90 && up=yes
+wait_front game 90 && up=yes
 check "S3.5 Steam opens in front, in its gamescope" test "$up" = yes
 [[ $up == yes ]] || said
 sleep 3
-check "S3.5 it fills the screen" fills_screen
+check "S3.5 it fills the screen, inside Fit to screen's margin while there is one" fills_screen
 # How the screen daemon started gamescope: full screen, at the TV's mode in
 # Hyprland's logical pixels (a 4K TV at scale 2 is 1920 x 1080 to it), with
 # Steam's Big Picture.
@@ -206,9 +211,9 @@ guest "origaitv screen home" >>"$RUN_DIR/screen.log" 2>&1 || true
 check "S2.15 Home shows the home screen" wait_front home 10
 check "S2.15 S3.5 the game keeps running behind home" game_running
 check "S2.15 home lists Steam as a game that's open, which its tile offers to quit" \
-  test "$(jq -c '[.open[] | select(.id == "origaitv.steam") | .role]' <<<"$(screen_status)" 2>/dev/null)" = '["steam"]'
+  test "$(jq -c '[.open[] | select(.id == "origaitv.steam") | [.role, .game]]' <<<"$(screen_status)" 2>/dev/null)" = '[["game",true]]'
 guest "origaitv screen app origaitv.steam" >>"$RUN_DIR/screen.log" 2>&1 || true
-check "S3.5 opening it again brings the same Steam back" wait_front steam 15
+check "S3.5 opening it again brings the same Steam back" wait_front game 15
 
 # Quitting Steam, as Exit Steam does, brings home back.
 ssh_guest "touch /tmp/origaitv-steam-quit"
@@ -218,7 +223,7 @@ capture_console "success-S3.5-home"
 
 # Quit on its tile, from home, closes it too.
 guest "origaitv screen app origaitv.steam" >>"$RUN_DIR/screen.log" 2>&1 || true
-wait_front steam 60 || true
+wait_front game 60 || true
 guest "origaitv screen home" >>"$RUN_DIR/screen.log" 2>&1 || true
 wait_front home 10 || true
 guest "origaitv screen quit origaitv.steam" >>"$RUN_DIR/screen.log" 2>&1 || true

@@ -39,7 +39,7 @@ There's one more ISO, for trying what's next: last night's edge build, like `ori
 
 A box installed from a release candidate or from edge gets every new build as it's made, not only the releases. To move it to the releases, run `origaitv channel stable` on it, and then `origaitv update`. The stable ISO, like `origaitv-1.0.0-x86_64.iso`, is coming soon, with 1.0.
 
-The ISO is too big for GitHub's release files, so it lives on Cloudflare R2. Since the file's name changes with every version, a small file for each kind says which ISO is the newest: [rc.json](https://pub-18fa48b004b845838c98225b8955c7e6.r2.dev/iso/rc.json) and [edge.json](https://pub-18fa48b004b845838c98225b8955c7e6.r2.dev/iso/edge.json), and `stable.json` once 1.0 is out. Those links don't change. Each has the ISO's file name, version, size in bytes, sha256 and address, and the addresses of its checksum and the checksum's signature (`sha256Url` and `sigUrl`). Older ISOs aren't kept.
+The ISO is too big for GitHub's release files, so it lives on Cloudflare R2, at iso.origai.tv. Since the file's name changes with every version, a small file for each kind says which ISO is the newest: [rc.json](https://iso.origai.tv/iso/rc.json) and [edge.json](https://iso.origai.tv/iso/edge.json), and `stable.json` once 1.0 is out. Those links don't change. Each has the ISO's file name, version, size in bytes, sha256 and address, and the addresses of its checksum and the checksum's signature (`sha256Url` and `sigUrl`). Older ISOs aren't kept.
 
 ## How an ISO gets made
 
