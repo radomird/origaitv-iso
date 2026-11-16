@@ -39,7 +39,7 @@ SANDBOXED=(origaitv-daemon origaitv-router origaitv-router-cli origaitv-build-ne
 KEPT_IN=(origaitv-build origaitv-key origaitv-setup-apps origaitv-zone origaitv-password@)
 ROOT_HELPERS=(origaitv-firstboot origaitv-update-check origaitv-update-tv origaitv-update-after origaitv-go-back
   origaitv-go-back-cleanup origaitv-hotspot origaitv-hotspot-boot origaitv-hotspot-drop origaitv-hotspot-watch origaitv-share origaitv-shares
-  origaitv-wake origaitv-app-package@ origaitv-boot-splash-release)
+  origaitv-wake origaitv-app-package@ origaitv-xbox-driver origaitv-boot-splash-release)
 # A unit's own ceiling, when its class's is too loose or too tight for it.
 # The daemon forks app workers and reads the GPU, so it keeps more than the
 # router does. It scored 6.3. Fetching a provider's CLI needs the whole
