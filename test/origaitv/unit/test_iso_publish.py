@@ -6,7 +6,9 @@ A stand-in for the AWS CLI is first on PATH. It keeps a folder as the
 bucket, writes down every call, and can be told to fail an upload (every
 time, or only the first few times, leaving an open upload behind the way
 R2 does) or to give a listing that's failed, garbled, cut short or missing
-a key."""
+a key. A stand-in for curl serves the bucket's iso/ folder at any address,
+the way ISO_URL does, unless it's told the address doesn't answer or serves
+another bucket."""
 
 import hashlib
 import json
@@ -21,6 +23,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 PUBLISH = ROOT / "bin" / "origaitv-iso-publish"
+
+# The name the ISOs went by before the rename to OrigaiTV.
+OLD = "agentv"
 
 # The stand-in: FAKE_BUCKET is the bucket, FAKE_LOG every call it got, and
 # FAKE_STATE what it remembers between calls: how many times each key was
@@ -96,8 +101,11 @@ elif command == "s3api abort-multipart-upload":
     save()
 elif command == "s3api head-object":
     path = bucket / flag("--key")
+    fails = os.environ.get("FAKE_HEAD_FAILS")
+    if fails and str(path).endswith(fails):
+        sys.exit("An error occurred (InternalError) when calling the HeadObject operation")
     if not path.is_file():
-        sys.exit(254)
+        sys.exit("An error occurred (404) when calling the HeadObject operation: Not Found")
     size = path.stat().st_size
     short = os.environ.get("FAKE_SHORT")
     if short and str(path).endswith(short):
@@ -139,6 +147,35 @@ else:
     sys.exit("the stand-in doesn't know: " + " ".join(args))
 '''
 
+# The address people download from: any https address serves the bucket's
+# files by their key, but a host in FAKE_PUBLIC_DOWN doesn't answer, and one
+# in FAKE_PUBLIC_OTHER serves another bucket's files.
+CURL = r'''#!{python}
+import os, sys
+from pathlib import Path
+from urllib.parse import urlsplit
+
+args = sys.argv[1:]
+url = next(arg for arg in args if arg.startswith("https://"))
+with open(os.environ["FAKE_LOG"], "a") as log:
+    log.write("curl " + url + "\n")
+parts = urlsplit(url)
+if parts.hostname in os.environ.get("FAKE_PUBLIC_DOWN", "").split():
+    sys.exit(f"curl: (6) Could not resolve host: {parts.hostname}")
+# https://<host>/iso/<file> is the bucket's key iso/<file>.
+path = Path(os.environ["FAKE_BUCKET"]) / parts.path.lstrip("/")
+if not path.is_file():
+    sys.exit("curl: (22) The requested URL returned error: 404")
+content = path.read_bytes()
+if parts.hostname in os.environ.get("FAKE_PUBLIC_OTHER", "").split():
+    content = b"another bucket's " + content
+out = args[args.index("-o") + 1] if "-o" in args else None
+if out:
+    Path(out).write_bytes(content)
+else:
+    sys.stdout.buffer.write(content)
+'''
+
 
 class IsoPublish(unittest.TestCase):
     def setUp(self):
@@ -155,6 +192,9 @@ class IsoPublish(unittest.TestCase):
         aws = bin_dir / "aws"
         aws.write_text(AWS.replace("{python}", sys.executable))
         aws.chmod(aws.stat().st_mode | stat.S_IXUSR)
+        curl = bin_dir / "curl"
+        curl.write_text(CURL.replace("{python}", sys.executable))
+        curl.chmod(curl.stat().st_mode | stat.S_IXUSR)
         self.env = {
             **os.environ,
             "PATH": f"{bin_dir}:{os.environ['PATH']}",
@@ -174,6 +214,7 @@ class IsoPublish(unittest.TestCase):
             "FAKE_SHORT", "FAKE_CP_FAILS", "FAKE_GET_FAILS", "FAKE_LIST_FAILS", "FAKE_LIST_GARBAGE", "FAKE_LIST_WHOLE_BUCKET",
             "FAKE_LIST_TRUNCATED", "FAKE_LIST_HIDES", "FAKE_LIST_KEEPS_COUNT", "ORIGAITV_ISO_STALE_MAX",
             "FAKE_CP_FAILS_FIRST", "FAKE_UPLOADS_LIST_FAILS", "ORIGAITV_ISO_TRIES", "AWS_CONFIG_FILE",
+            "FAKE_HEAD_FAILS", "FAKE_PUBLIC_DOWN", "FAKE_PUBLIC_OTHER",
         ):
             self.env.pop(name, None)
 
@@ -202,9 +243,9 @@ class IsoPublish(unittest.TestCase):
             (names / f"{name}.iso.sha256.sig").write_bytes(b"a signature")
         return iso, names
 
-    def publish(self, channel, name, content=b"an ISO", signed=True):
+    def publish(self, channel, name, content=b"an ISO", signed=True, **env):
         iso, names = self.named(channel, name, content, signed)
-        result = self.run_publish("upload", channel, str(iso), str(names))
+        result = self.run_publish("upload", channel, str(iso), str(names), **env)
         self.assertEqual(result.returncode, 0, result.stderr)
         return result
 
@@ -305,10 +346,102 @@ class IsoPublish(unittest.TestCase):
                 "channel": "stable",
                 "version": "1.0.0",
                 "file": "origaitv-1.0.0-x86_64.iso",
+                "size": len(b"release"),
                 "sha256": hashlib.sha256(b"release").hexdigest(),
                 "url": "https://downloads.example.invalid/iso/origaitv-1.0.0-x86_64.iso",
+                "sha256Url": "https://downloads.example.invalid/iso/origaitv-1.0.0-x86_64.iso.sha256",
+                "sigUrl": "https://downloads.example.invalid/iso/origaitv-1.0.0-x86_64.iso.sha256.sig",
             },
         )
+
+    def test_the_channels_file_has_the_isos_size_in_bytes(self):
+        content = b"x" * 12345
+        self.publish("rc", "origaitv-1.0.0-rc3-x86_64", content)
+        raw = (self.bucket / "iso/rc.json").read_text()
+        # A number, not a string, and the bucket's size of the ISO.
+        self.assertIn('"size": 12345', raw)
+        self.assertEqual(self.pointer("rc")["size"], (self.bucket / "iso/origaitv-1.0.0-rc3-x86_64.iso").stat().st_size)
+
+    def test_every_address_in_the_channels_file_is_a_file_in_the_bucket(self):
+        for iso_url in ("https://downloads.example.invalid", "https://downloads.example.invalid/", "https://iso.example.invalid/"):
+            self.publish("edge", "origaitv-0.2.0.r840.gabcdef012-x86_64", ISO_URL=iso_url)
+            pointer = self.pointer("edge")
+            base = iso_url.rstrip("/") + "/"
+            for field in ("url", "sha256Url", "sigUrl"):
+                self.assertTrue(pointer[field].startswith(base + "iso/"), f"{field} with {iso_url}")
+                self.assertIn(pointer[field][len(base):], self.keys(), field)
+            self.assertEqual(pointer["sha256Url"], pointer["url"] + ".sha256")
+            self.assertEqual(pointer["sigUrl"], pointer["url"] + ".sha256.sig")
+            shutil.rmtree(self.bucket)
+            self.bucket.mkdir()
+
+    def test_an_unsigned_iso_has_no_signature_address(self):
+        self.publish("stable", "origaitv-1.0.0-x86_64", signed=False)
+        pointer = self.pointer("stable")
+        self.assertIsNone(pointer["sigUrl"])
+        self.assertIn("sigUrl", pointer)
+        self.assertEqual(pointer["sha256Url"], "https://downloads.example.invalid/iso/origaitv-1.0.0-x86_64.iso.sha256")
+        # The same ISO again, still unsigned.
+        self.publish("stable", "origaitv-1.0.0-x86_64", signed=False)
+        self.assertIsNone(self.pointer("stable")["sigUrl"])
+        # Then signed: the address is there.
+        self.publish("stable", "origaitv-1.0.0-x86_64")
+        self.assertEqual(self.pointer("stable")["sigUrl"], "https://downloads.example.invalid/iso/origaitv-1.0.0-x86_64.iso.sha256.sig")
+
+    def test_the_same_iso_again_unsigned_keeps_its_signature_address(self):
+        # Its signature stays in the bucket, so the channel's file still has it.
+        self.publish("stable", "origaitv-1.0.0-x86_64", b"one")
+        self.publish("stable", "origaitv-1.0.0-x86_64", b"one", signed=False)
+        self.assertEqual(self.pointer("stable")["sigUrl"], "https://downloads.example.invalid/iso/origaitv-1.0.0-x86_64.iso.sha256.sig")
+
+    def test_the_checksum_comes_back_from_iso_url_before_the_channels_file_moves(self):
+        self.publish("stable", "origaitv-1.0.0-x86_64")
+        calls = self.log.read_text().splitlines()
+        fetched = [i for i, call in enumerate(calls) if call.startswith("curl https://downloads.example.invalid/iso/origaitv-1.0.0-x86_64.iso.sha256?")]
+        self.assertEqual(len(fetched), 1)
+        json_up = next(i for i, call in enumerate(calls) if call.startswith("s3 cp") and call.endswith("/iso/stable.json"))
+        self.assertLess(fetched[0], json_up)
+
+    def test_an_iso_url_that_doesnt_answer_yet_leaves_the_channels_file_where_it_was(self):
+        # ISO_URL set to a custom domain before the bucket answers there: the
+        # channel's file would name links that go nowhere.
+        self.publish("rc", "origaitv-1.0.0-rc2-x86_64", b"rc2")
+        before = (self.bucket / "iso/rc.json").read_bytes()
+        iso, names = self.named("rc", "origaitv-1.0.0-rc3-x86_64", b"rc3")
+        result = self.run_publish(
+            "upload", "rc", str(iso), str(names), ISO_URL="https://iso.example.invalid", FAKE_PUBLIC_DOWN="iso.example.invalid"
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("https://iso.example.invalid/iso/origaitv-1.0.0-rc3-x86_64.iso.sha256 doesn't answer", result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual((self.bucket / "iso/rc.json").read_bytes(), before)
+        # Once it answers, the same publish goes through, with the new address.
+        result = self.run_publish("upload", "rc", str(iso), str(names), ISO_URL="https://iso.example.invalid")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.pointer("rc")["url"], "https://iso.example.invalid/iso/origaitv-1.0.0-rc3-x86_64.iso")
+        # A first publish to a channel writes no file at all.
+        iso, names = self.named("stable", "origaitv-1.0.0-x86_64")
+        result = self.run_publish("upload", "stable", str(iso), str(names), FAKE_PUBLIC_DOWN="downloads.example.invalid")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("iso/stable.json", self.keys())
+
+    def test_an_iso_url_that_serves_another_bucket_leaves_the_channels_file_where_it_was(self):
+        self.publish("edge", "origaitv-0.2.0.r840.gabcdef012-x86_64", b"one")
+        before = (self.bucket / "iso/edge.json").read_bytes()
+        iso, names = self.named("edge", "origaitv-0.2.0.r841.gabcdef013-x86_64", b"two")
+        result = self.run_publish("upload", "edge", str(iso), str(names), FAKE_PUBLIC_OTHER="downloads.example.invalid")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("isn't the file that was just uploaded", result.stderr)
+        self.assertEqual((self.bucket / "iso/edge.json").read_bytes(), before)
+
+    def test_not_knowing_whether_its_signed_leaves_the_channels_file_where_it_was(self):
+        self.publish("stable", "origaitv-1.0.0-x86_64", b"one")
+        before = (self.bucket / "iso/stable.json").read_bytes()
+        iso, names = self.named("stable", "origaitv-1.0.0-x86_64", b"one", signed=False)
+        result = self.run_publish("upload", "stable", str(iso), str(names), FAKE_HEAD_FAILS="origaitv-1.0.0-x86_64.iso.sha256.sig")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("couldn't tell whether", result.stderr)
+        self.assertEqual((self.bucket / "iso/stable.json").read_bytes(), before)
 
     def test_the_channels_file_goes_up_last_after_the_sizes_are_checked(self):
         self.publish("stable", "origaitv-1.0.0-x86_64")
@@ -475,7 +608,12 @@ class IsoPublish(unittest.TestCase):
         self.assertEqual([call for call in self.calls("s3 cp") if call.endswith("/iso/origaitv-1.0.0-x86_64.iso")], [])
         self.assertEqual(self.deleted(), [])
         self.assertEqual(self.keys(), sorted(self.files("origaitv-1.0.0-x86_64") + ["iso/stable.json"]))
-        self.assertEqual((self.bucket / "iso/stable.json").read_bytes(), before)
+        # The channel's file gains the signature's address, and nothing else changes.
+        after = self.pointer("stable")
+        self.assertEqual(after.pop("sigUrl"), "https://downloads.example.invalid/iso/origaitv-1.0.0-x86_64.iso.sha256.sig")
+        before = json.loads(before)
+        self.assertIsNone(before.pop("sigUrl"))
+        self.assertEqual(after, before)
         # Its size is still asked for, so a live ISO that's gone short stops it.
         self.assertTrue(any("--key iso/origaitv-1.0.0-x86_64.iso " in call for call in self.calls("s3api head-object")))
         iso, names = self.named("stable", "origaitv-1.0.0-x86_64", b"one")
@@ -601,6 +739,107 @@ class IsoPublish(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.log.read_text(), "")
 
+    # --- the ISOs from before the rename ----------------------------------
+
+    def published_before_the_rename(self, channel, version, signed=True):
+        """The bucket as the rename left it: the channel's file names an ISO
+        under the old name, and that ISO is there with what goes with it."""
+        name = f"{OLD}-{version}-x86_64"
+        digest = hashlib.sha256(b"old").hexdigest()
+        self.put(f"iso/{name}.iso", b"old")
+        self.put(f"iso/{name}.iso.sha256", f"{digest}  {name}.iso\n".encode())
+        if signed:
+            self.put(f"iso/{name}.iso.sha256.sig", b"an old signature")
+        pointer = {
+            "channel": channel,
+            "version": version,
+            "file": f"{name}.iso",
+            "sha256": digest,
+            "url": f"https://downloads.example.invalid/iso/{name}.iso",
+        }
+        self.put(f"iso/{channel}.json", json.dumps(pointer, indent=2).encode())
+        return self.files(name, signed)
+
+    def test_a_channels_file_naming_an_iso_from_before_the_rename_is_replaced(self):
+        # What the bucket had on 2026-11-16: rc.json on rc2 and edge.json on a
+        # night's build, both under the old name. The next publish of each
+        # moves the channel on, and the clean-up takes the old ISO out.
+        for channel, old, new, signed in (
+            ("rc", "1.0.0-rc2", "1.0.0-rc3", True),
+            ("edge", "0.2.0.r831.g59f9f8164", "0.2.0.r840.gabcdef012", False),
+            ("stable", "0.1.4", "1.0.0", True),
+        ):
+            old_keys = self.published_before_the_rename(channel, old, signed)
+            self.log.write_text("")
+            result = self.publish(channel, f"origaitv-{new}-x86_64", b"new")
+            self.assertEqual(result.stdout.strip(), f"https://downloads.example.invalid/iso/origaitv-{new}-x86_64.iso")
+            self.assertEqual(self.pointer(channel)["file"], f"origaitv-{new}-x86_64.iso")
+            self.assertEqual(self.pointer(channel)["version"], new)
+            # Nothing of the old ISO went before the channel moved.
+            self.assertEqual(self.deleted(), [])
+            for key in old_keys:
+                self.assertIn(key, self.keys())
+
+            stale = self.run_publish("stale", channel)
+            self.assertEqual(stale.returncode, 0, stale.stderr)
+            self.assertEqual([line.strip() for line in stale.stdout.splitlines()[1:]], sorted(old_keys))
+            clean = self.run_publish("clean", channel)
+            self.assertEqual(clean.returncode, 0, clean.stderr)
+            self.assertEqual(sorted(self.deleted()), sorted(old_keys))
+            self.assertEqual(self.keys(), sorted(self.files(f"origaitv-{new}-x86_64") + [f"iso/{channel}.json"]))
+            shutil.rmtree(self.bucket)
+            self.bucket.mkdir()
+
+    def test_an_iso_from_before_the_rename_still_only_moves_forward(self):
+        for channel, live, older in (
+            ("rc", "1.0.0-rc2", "1.0.0-rc1"),
+            ("edge", "0.2.0.r831.g59f9f8164", "0.2.0.r830.gabcdef012"),
+        ):
+            self.published_before_the_rename(channel, live)
+            before = {key: (self.bucket / key).read_bytes() for key in self.keys()}
+            self.log.write_text("")
+            iso, names = self.named(channel, f"origaitv-{older}-x86_64", b"older")
+            result = self.run_publish("upload", channel, str(iso), str(names))
+            self.assertNotEqual(result.returncode, 0, f"{channel}: {older} over {live}")
+            self.assertIn(f"is {live}, and {older} is older", result.stderr)
+            self.assertEqual(self.calls("s3 cp"), [])
+            self.assertEqual({key: (self.bucket / key).read_bytes() for key in self.keys()}, before)
+            # Going back on purpose still works.
+            result = self.run_publish("upload", channel, str(iso), str(names), ORIGAITV_ISO_GO_BACK="1")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(self.pointer(channel)["version"], older)
+            shutil.rmtree(self.bucket)
+            self.bucket.mkdir()
+
+    def test_another_channels_iso_from_before_the_rename_still_stops_the_upload(self):
+        # The old name is accepted only with the channel's own kind of version.
+        for channel, theirs in (("stable", "1.0.0-rc2"), ("rc", "0.2.0.r831.g59f9f8164"), ("edge", "1.0.0")):
+            self.put(f"iso/{channel}.json", json.dumps({"file": f"{OLD}-{theirs}-x86_64.iso"}).encode())
+            mine = {"stable": "1.0.0", "rc": "1.0.0-rc3", "edge": "0.2.0.r840.gabcdef012"}[channel]
+            self.log.write_text("")
+            iso, names = self.named(channel, f"origaitv-{mine}-x86_64")
+            result = self.run_publish("upload", channel, str(iso), str(names))
+            self.assertNotEqual(result.returncode, 0, channel)
+            self.assertIn(f"doesn't name a {channel} ISO", result.stderr)
+            self.assertEqual(self.calls("s3 cp"), [])
+
+    def test_nothing_new_goes_up_under_the_old_name(self):
+        for channel, version in (("stable", "1.0.0"), ("rc", "1.0.0-rc3"), ("edge", "0.2.0.r840.gabcdef012")):
+            iso = self.built(f"{OLD}-{version}-x86_64")
+            names = self.work / f"names-old-{channel}"
+            result = self.run_publish("names", channel, f"{iso}.sha256", str(names))
+            self.assertNotEqual(result.returncode, 0, channel)
+            self.assertFalse(names.exists())
+
+    def test_stale_waits_for_the_channel_to_move_off_the_old_name(self):
+        # Before the first publish after the rename, the channel's file still
+        # names the old ISO. stale and clean only follow an upload, which
+        # moves it, so here they stop and remove nothing.
+        for channel, version in (("rc", "1.0.0-rc2"), ("edge", "0.2.0.r831.g59f9f8164")):
+            self.published_before_the_rename(channel, version)
+        self.log.write_text("")
+        self.refused("nothing is removed", "rc", "edge")
+
     # --- stale and clean ---------------------------------------------------
 
     def fill(self):
@@ -626,6 +865,10 @@ class IsoPublish(unittest.TestCase):
         }
         for channel in self.before:
             self.before[channel] += self.files(f"origaitv-{channel}") + [f"iso/origaitv-{channel}.version"]
+        # Each channel's ISO from before the rename, under the old name.
+        self.before["stable"] += self.files(f"{OLD}-0.1.4-x86_64")
+        self.before["rc"] += self.files(f"{OLD}-1.0.0-rc2-x86_64")
+        self.before["edge"] += self.files(f"{OLD}-0.2.0.r831.g59f9f8164-x86_64", signed=False)
         self.others = [
             "iso/README.txt",
             "iso/notes.version.txt",
@@ -640,6 +883,9 @@ class IsoPublish(unittest.TestCase):
             "backgrounds/origaitv-0.1.4-x86_64.iso",
             "index.html",
             "isos/origaitv-0.1.4-x86_64.iso",
+            f"iso/{OLD}-1.0.0-aarch64.iso",
+            f"iso/{OLD}-beta.iso",
+            f"backgrounds/{OLD}-1.0.0-rc2-x86_64.iso",
         ]
         for keys in (*self.before.values(), self.others):
             for key in keys:

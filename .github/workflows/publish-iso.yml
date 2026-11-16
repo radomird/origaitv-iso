@@ -392,8 +392,10 @@ jobs:
           echo "The checksum is signed by \`$pinned\`." >>"$GITHUB_STEP_SUMMARY"
 
       # Checks the ISO against the checksum first, then asks the bucket for
-      # each file's size after. Only then does the channel's .json file move
-      # to this ISO. A file that fails to upload is tried again by itself,
+      # each file's size after, and fetches the checksum back from ISO_URL,
+      # the address people download from. Only then does the channel's .json
+      # file move to this ISO, with the ISO's size and the addresses of its
+      # checksum and signature. A file that fails to upload is tried again by itself,
       # three tries in all, with what the failed try left open aborted. So
       # one upload that R2 turns down doesn't stop the publish, and nobody
       # has to start a new run for it.
