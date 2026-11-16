@@ -5,11 +5,13 @@
 # screen. The screen daemon moved the app back in front with no monitor
 # there, which killed Hyprland 0.56, and start-hyprland brought it back in
 # its safe mode, which only a mouse or a keyboard gets past. Here:
-#   - the connector is forced off through sysfs, the same unplug the kernel
-#     sends when a TV goes, and Hyprland has no monitor;
+#   - the monitor goes, as Hyprland drops it when a TV unplugs: a rule
+#     that disables it runs the same disconnect (CMonitor::onDisconnect),
+#     and Hyprland has no monitor. virtio-gpu's connector forced off
+#     through sysfs didn't take the monitor away: it was back in seconds;
 #   - input ends the ambient screen and an app opens, and Hyprland lives;
-#   - the connector comes back, and the app is in front again, inside Fit to
-#     screen's margin, on the same Hyprland;
+#   - the monitor comes back with the rule the session runs at, and the app
+#     is in front again, inside Fit to screen's margin, on the same Hyprland;
 #   - Hyprland killed with SIGSEGV comes back as the TV, not in safe mode,
 #     with home in front and the TV's units on the new Hyprland;
 #   - and only after two more crashes, each within a minute of a start, does
@@ -80,6 +82,10 @@ new_hyprland() {
   pid=$(hyprland_pid)
   [[ -n $pid && $pid != "$1" ]] && guest_hyprctl "version" >/dev/null 2>&1
 }
+# Lua in the TV session's Hyprland, as the screen daemon runs it.
+hypr_eval() {
+  guest_hyprctl "eval $(printf %q "$1")"
+}
 screen_log() {
   guest "journalctl --user -b --no-pager -u origaitv-screen" 2>/dev/null || true
 }
@@ -94,13 +100,14 @@ check "the ambient screen comes up over it" wait_for 15 role_is home
 pid=$(hyprland_pid)
 log "Hyprland is pid $pid"
 
-# The TV's output goes: its connector forced off, as a TV in standby unplugs.
+# The TV's output goes, as when the TV goes to standby or to another input.
 output=$(guest_hyprctl "-j monitors" 2>/dev/null | jq -r 'first(.[] | select(.disabled != true)) | .name' 2>/dev/null || true)
-connector=$(ssh_guest "ls -d /sys/class/drm/card*-$output 2>/dev/null | head -n 1" 2>/dev/null | tr -d '\r' || true)
-check "the TV's output is a connector the kernel lists ($output: $connector)" test -n "$connector"
+kept=$(guest "cat \"\${XDG_STATE_HOME:-\$HOME/.local/state}/origaitv/display\"" 2>/dev/null | tr -d '\r' || true)
+log "The TV is $output, kept as: $kept"
+check "the TV has a monitor to take away ($output)" test -n "$output"
 since=$(ssh_guest "date +%s" 2>/dev/null | tr -d '\r' || true)
-ssh_sudo "echo off >$connector/status" >>"$RUN_DIR/connector.log" 2>&1 || true
-check "T22.4 with the connector off, Hyprland has no monitor" wait_for 15 no_monitor
+hypr_eval "hl.monitor({ output = \"$output\", disabled = true })" >>"$RUN_DIR/monitor.log" 2>&1 || true
+check "T22.4 with the monitor gone, Hyprland has none" wait_for 15 no_monitor
 
 # What killed Hyprland on the NUC: input on the seat, as the overlay says it,
 # ending the ambient screen, which put the app back in front. And a second
@@ -114,9 +121,19 @@ check "T22.4 the screen daemon knew the output was gone" grep -q "the TV's outpu
 check "T22.4 and kept the app to put in front once it's back" grep -q "goes in front once the TV's output is back" "$RUN_DIR/origaitv-screen-gone.log"
 check "T22.4 focus on no window isn't given back" bash -c "! grep -q 'focus went to 0x;' '$RUN_DIR/origaitv-screen-gone.log'"
 
-# The output comes back.
-ssh_sudo "echo detect >$connector/status" >>"$RUN_DIR/connector.log" 2>&1 || true
-check "T22.4 with the connector back, Hyprland has its monitor again" wait_for 20 a_monitor
+# The output comes back, at the mode, scale and margin the session runs at.
+read -r kept_output kept_mode kept_scale kept_x kept_y <<<"$kept"
+rule="hl.monitor({ output = \"$output\", mode = \"preferred\", position = \"auto\", scale = \"auto\" })"
+if [[ $kept_output == "$output" && -n $kept_mode && -n $kept_scale ]]; then
+  reserved=""
+  if [[ -n $kept_x && -n $kept_y ]]; then
+    reserved=", reserved = { top = $kept_y, right = $kept_x, bottom = $kept_y, left = $kept_x }"
+  fi
+  rule="hl.monitor({ output = \"$output\", mode = \"$kept_mode\", position = \"auto\", scale = $kept_scale$reserved })"
+fi
+log "Back with: $rule"
+hypr_eval "$rule" >>"$RUN_DIR/monitor.log" 2>&1 || true
+check "T22.4 with the monitor back, Hyprland has it again" wait_for 20 a_monitor
 check "T22.4 the app is in front again, inside the margin" wait_for 20 app_inside
 capture_console "success-T22.4-back"
 guest "journalctl --user -u origaitv-screen --since @${since:-0} --no-pager" >"$RUN_DIR/origaitv-screen-back.log" 2>&1 || true
