@@ -158,7 +158,7 @@ wait_front() {
 # Whether Steam is in front and fills the screen.
 fills_screen() {
   local address monitor client
-  [[ $(front '.front.role // ""') == "steam" ]] || return 1
+  [[ $(front '.front.role // ""') == "game" ]] || return 1
   address=$(front '.front.address // ""')
   monitor=$(guest_hyprctl "-j monitors" 2>/dev/null | jq -c '.[0] | [(.width / .scale | floor), (.height / .scale | floor)]' 2>/dev/null || true)
   client=$(guest_hyprctl "-j clients" 2>/dev/null | jq -c --arg address "$address" '.[] | select(.address == $address) | {at, size}' 2>/dev/null || true)
@@ -182,7 +182,7 @@ said() {
 
 guest "origaitv screen app origaitv.steam" >>"$RUN_DIR/screen.log" 2>&1 || true
 up=no
-wait_front steam 90 && up=yes
+wait_front game 90 && up=yes
 check "S3.5 Steam opens in front, in its gamescope" test "$up" = yes
 [[ $up == yes ]] || said
 sleep 3
@@ -206,9 +206,9 @@ guest "origaitv screen home" >>"$RUN_DIR/screen.log" 2>&1 || true
 check "S2.15 Home shows the home screen" wait_front home 10
 check "S2.15 S3.5 the game keeps running behind home" game_running
 check "S2.15 home lists Steam as a game that's open, which its tile offers to quit" \
-  test "$(jq -c '[.open[] | select(.id == "origaitv.steam") | .role]' <<<"$(screen_status)" 2>/dev/null)" = '["steam"]'
+  test "$(jq -c '[.open[] | select(.id == "origaitv.steam") | [.role, .game]]' <<<"$(screen_status)" 2>/dev/null)" = '[["game",true]]'
 guest "origaitv screen app origaitv.steam" >>"$RUN_DIR/screen.log" 2>&1 || true
-check "S3.5 opening it again brings the same Steam back" wait_front steam 15
+check "S3.5 opening it again brings the same Steam back" wait_front game 15
 
 # Quitting Steam, as Exit Steam does, brings home back.
 ssh_guest "touch /tmp/origaitv-steam-quit"
@@ -218,7 +218,7 @@ capture_console "success-S3.5-home"
 
 # Quit on its tile, from home, closes it too.
 guest "origaitv screen app origaitv.steam" >>"$RUN_DIR/screen.log" 2>&1 || true
-wait_front steam 60 || true
+wait_front game 60 || true
 guest "origaitv screen home" >>"$RUN_DIR/screen.log" 2>&1 || true
 wait_front home 10 || true
 guest "origaitv screen quit origaitv.steam" >>"$RUN_DIR/screen.log" 2>&1 || true
