@@ -45,14 +45,21 @@
 # the ISO went out without one. All three addresses start with ISO_URL, so
 # they follow it when it moves to another address.
 #
+# Before <channel>.json moves, the checksum is fetched from ISO_URL the
+# way a browser would, and has to come back as it went up. So ISO_URL
+# pointed at an address that doesn't serve the bucket yet (a custom domain
+# that isn't set up, say) stops the publish, and no link that goes
+# nowhere gets written.
+#
 #   names <channel> <iso.sha256> <dir>
 #       Checks the checksum file a build left beside its ISO
 #       (origaitv-1.0.0-x86_64.iso.sha256) and writes it into <dir>. Needs no
 #       keys. That file is what gets signed, before the upload.
 #   upload <channel> <iso> <dir>
 #       Checks the ISO against <dir>'s checksum, uploads the ISO and what's
-#       in <dir>, asks the bucket for each file's size and compares, and
-#       then moves <channel>.json to the new ISO.
+#       in <dir>, asks the bucket for each file's size and compares, fetches
+#       the checksum back from ISO_URL, the address people download from,
+#       and then moves <channel>.json to the new ISO.
 #       The ISO <channel>.json points at is never replaced: the same ISO
 #       again keeps its bytes and only gets its checksum and signature
 #       again, and a different ISO under that name is refused.
@@ -305,6 +312,22 @@ signed_in_bucket() {
   fi
 }
 
+# Stops unless ISO_URL serves the file at $1 under key $2, byte for byte.
+# The checksum is a few bytes, so this asks for little. The query string
+# keeps a cache in front of the bucket from answering with an older copy.
+served_publicly() {
+  local url="${ISO_URL%/}/$PREFIX$2"
+  if ! curl -fsSL --retry 3 --retry-delay 5 --max-time 60 -o "$WORK/public" "$url?publish=$$" 2>"$WORK/public.err"; then
+    cat "$WORK/public.err" >&2
+    echo "origaitv-iso-publish: $url doesn't answer, so ISO_URL ($ISO_URL) isn't where people can download from yet, and $PREFIX$channel.json stays where it was" >&2
+    exit 1
+  fi
+  if ! cmp -s "$1" "$WORK/public"; then
+    echo "origaitv-iso-publish: $url isn't the file that was just uploaded, so ISO_URL ($ISO_URL) isn't this bucket's address, and $PREFIX$channel.json stays where it was" >&2
+    exit 1
+  fi
+}
+
 upload() {
   local channel=$1 iso=$2 dir=$3 hash file version item live live_file live_version size signed sig
   local -a sums files
@@ -400,6 +423,8 @@ upload() {
     same_size "${item%%:*}" "${item##*:}"
   done
   size=$(stat -c %s "$iso")
+  # And what people get from the address the channel's file will name.
+  served_publicly "$dir/$file.sha256" "$file.sha256"
 
   # Whether the checksum is signed. With a signature this time, it is. The
   # same ISO again without one keeps the signature it went out with, if it
