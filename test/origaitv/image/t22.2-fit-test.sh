@@ -1,8 +1,10 @@
 #!/bin/bash
 #
-# T22.2: Fit to screen (ADR-103) on a 1080p TV, in a VM whose screen is
-# 1920 x 1080, where a TV that crops its edges would cut a page off. The
-# margin is 3 percent on each side to start with:
+# T22.2: Fit to screen (ADR-103) at standard's 1920 x 1080 canvas, where a
+# TV that crops its edges would cut a page off. The VM offers 4K too, which
+# the box picks, at scale 2: everything here is in the canvas's logical
+# pixels, the same as on a 1080p TV at scale 1. The margin is 3 percent on
+# each side to start with:
 #   - Hyprland keeps it as the monitor's reserved area, 58 by 32;
 #   - a stand-in service page is maximized inside it, so its window's
 #     corners are 58 and 32 in from the screen's, and the page is that size;
@@ -12,7 +14,7 @@
 #     setting the TV's mode again;
 #   - and after a restart the TV session starts with that margin, from the
 #     line the screen daemon kept, and the page is inside it again.
-# About seven minutes, most of it the two boots.
+# About two minutes from the night's box, most of it the restart.
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)/test/integration.d/base-test.sh"
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/tv.sh"
@@ -73,8 +75,8 @@ title_is() {
 }
 
 guest_hyprctl "-j monitors" >"$RUN_DIR/monitors-before.json" 2>&1 || true
-check "the VM's screen is 1080p at scale 1, as the TV's is (it runs $(monitor '"\(.width)x\(.height) at \(.scale)"'))" \
-  test "$(monitor '"\(.width)x\(.height) \(.scale)"')" = "1920x1080 1"
+check "the TV's canvas is standard's 1920 by 1080 (it runs $(monitor '"\(.width)x\(.height) at \(.scale)"'))" \
+  test "$(monitor '"\(.width / .scale | round)x\(.height / .scale | round)"')" = "1920x1080"
 
 # On to start with: 3 percent, 58 by 32 at 1080p.
 check "T22.2 Fit to screen is on to start with: a margin of 3 (it's $(display .margin), $(display '.inset | join(" by ")'))" \
@@ -84,10 +86,11 @@ check "T22.2 Hyprland keeps it as the monitor's reserved area (left, top, right,
 check "T22.2 home stays full screen, its picture to the edges ($(front '.front.role // ""'), $(front_box))" \
   test "$(front '.front.role // ""') $(front_box)" = "home 0 0 1920 1080"
 
-# The stand-in service page, served on the box itself.
-ssh_guest "mkdir -p /tmp/origaitv-fit && cat >/tmp/origaitv-fit/index.html" <"$(dirname -- "${BASH_SOURCE[0]}")/pages/fit.html"
+# The stand-in service page, served on the box itself. Again after the
+# restart, which empties /tmp.
 serve() {
-  ssh_guest "cd /tmp/origaitv-fit && (nohup python3 -m http.server 8768 --bind 127.0.0.1 >/dev/null 2>&1 &)"
+  ssh_guest "mkdir -p /tmp/origaitv-fit && cat >/tmp/origaitv-fit/index.html" <"$(dirname -- "${BASH_SOURCE[0]}")/pages/fit.html" || true
+  ssh_guest "cd /tmp/origaitv-fit && (nohup python3 -m http.server 8768 --bind 127.0.0.1 >/dev/null 2>&1 &)" || true
 }
 serve
 
@@ -123,9 +126,9 @@ check "T22.2 the monitor keeps it ($(monitor '.reserved | join(" ")'))" wait_for
 check "T22.2 the page in front moves inside it: at 96,54, 1728 by 972 (it's $(front_box))" wait_for 10 front_is "96 54 1728 972"
 guest "journalctl --user -u origaitv-screen --since @${since:-0} --no-pager" >"$RUN_DIR/origaitv-screen-margin.log" 2>&1 || true
 check "T22.2 the screen daemon set the margin alone" grep -q "display: the margin on .* is 96 by 54" "$RUN_DIR/origaitv-screen-margin.log"
-check "T22.2 without setting the TV's mode again" bash -c "! grep -q 'display: .* at 1920x1080' '$RUN_DIR/origaitv-screen-margin.log'"
+check "T22.2 without setting the TV's mode again" bash -c "! grep -Eq 'display: .* at [0-9]+x[0-9]+@' '$RUN_DIR/origaitv-screen-margin.log'"
 kept=$(guest "cat \"\${XDG_STATE_HOME:-\$HOME/.local/state}/origaitv/display\"" 2>/dev/null | tr -d '\r' || true)
-check "T22.2 the screen daemon keeps the margin for the next session (the line: $kept)" grep -Eq '^[A-Za-z0-9._-]+ 1920x1080@[0-9.]+ 1 96 54$' <<<"$kept"
+check "T22.2 the screen daemon keeps the margin for the next session (the line: $kept)" grep -Eq '^[A-Za-z0-9._-]+ [0-9]+x[0-9]+@[0-9.]+ [0-9.]+ 96 54$' <<<"$kept"
 
 # A restart: the TV session starts with the margin, and the page is inside it.
 boot=$(ssh_guest "cat /proc/sys/kernel/random/boot_id" 2>/dev/null || true)
@@ -142,7 +145,7 @@ guest_hyprctl "-j monitors" >"$RUN_DIR/monitors-after.json" 2>&1 || true
 check "T22.2 after the restart, the monitor has the margin ($(monitor '.reserved | join(" ")'))" wait_for 15 reserved_is "96 54 96 54"
 guest "journalctl --user -b -u origaitv-screen --no-pager" >"$RUN_DIR/origaitv-screen-after.log" 2>&1 || true
 check "T22.2 the session started with it: the screen daemon had nothing to set" \
-  bash -c "! grep -qE 'display: .* at 1920x1080|display: the margin on' '$RUN_DIR/origaitv-screen-after.log'"
+  bash -c "! grep -qE 'display: .* at [0-9]+x[0-9]+@|display: the margin on' '$RUN_DIR/origaitv-screen-after.log'"
 serve
 open_page 96 54
 guest_hyprctl "-j clients" >"$RUN_DIR/clients-after.json" 2>&1 || true
