@@ -99,6 +99,8 @@ guest "origaitv screen open http://127.0.0.1:8768/" >>"$RUN_DIR/screen.log" 2>&1
 check "the stand-in app opens in front, inside the margin" wait_for 60 app_inside
 guest "origaitv screen ambient" >>"$RUN_DIR/screen.log" 2>&1 || true
 check "the ambient screen comes up over it" wait_for 15 role_is home
+# Input just as it comes up keeps it up; past that, input ends it.
+sleep 4
 pid=$(hyprland_pid)
 log "Hyprland is pid $pid"
 
@@ -125,14 +127,16 @@ check "T22.4 and kept the app to put in front once it's back" grep -q "goes in f
 check "T22.4 focus on no window isn't given back" bash -c "! grep -q 'focus went to 0x;' '$RUN_DIR/origaitv-screen-gone.log'"
 
 # The output comes back, at the mode, scale and margin the session runs at.
+# A rule keeps what an earlier one set unless it says otherwise, so it says
+# the monitor isn't disabled.
 read -r kept_output kept_mode kept_scale kept_x kept_y <<<"$kept"
-rule="hl.monitor({ output = \"$output\", mode = \"preferred\", position = \"auto\", scale = \"auto\" })"
+rule="hl.monitor({ output = \"$output\", disabled = false, mode = \"preferred\", position = \"auto\", scale = \"auto\" })"
 if [[ $kept_output == "$output" && -n $kept_mode && -n $kept_scale ]]; then
   reserved=""
   if [[ -n $kept_x && -n $kept_y ]]; then
     reserved=", reserved = { top = $kept_y, right = $kept_x, bottom = $kept_y, left = $kept_x }"
   fi
-  rule="hl.monitor({ output = \"$output\", mode = \"$kept_mode\", position = \"auto\", scale = $kept_scale$reserved })"
+  rule="hl.monitor({ output = \"$output\", disabled = false, mode = \"$kept_mode\", position = \"auto\", scale = $kept_scale$reserved })"
 fi
 log "Back with: $rule"
 hypr_eval "$rule" >>"$RUN_DIR/monitor.log" 2>&1 || true
