@@ -37,17 +37,20 @@ name: Publish ISO
 #
 # It always runs from the origaitv branch, never from the tag or the branch
 # that built the ISO, so the build never has the bucket's keys or the
-# signing key. Four jobs:
+# signing key. Five jobs:
 #
 #   which    works out which ISO, with no secrets
 #   sum      fetches the ISO's checksum and checks it names a channel's ISO
 #   sign     has OrigaiTV's signing key and does nothing but sign that file
 #   publish  has the bucket's keys: uploads, checks, and cleans up
+#   site     a release's or a candidate's: asks Netlify to build origai.tv
+#            again, so its page names the new ISO
 #
 # sign and publish read their secrets through the "release" environment,
 # which only origaitv may use: AGENTV_SIGNING_KEY for sign, and
-# R2_ACCOUNT_ID, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY for publish. The
-# variables R2_BUCKET and ISO_URL say where the bucket is.
+# R2_ACCOUNT_ID, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY for publish, and
+# ORIGAITV_SITE_BUILD_HOOK for site, if it's there. The variables R2_BUCKET
+# and ISO_URL say where the bucket is.
 
 on:
   workflow_run:
@@ -492,3 +495,33 @@ jobs:
         run: |
           set -o pipefail
           bin/origaitv-iso-publish clean "$CHANNEL" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  # origai.tv's download button always gets the newest ISO, but the version,
+  # size and checksum under it are read when the site is built. So after a
+  # release or a candidate, this asks Netlify to build it again, through a
+  # build hook kept as ORIGAITV_SITE_BUILD_HOOK in the release environment.
+  # It has nothing else: no keys, no checkout. Without the hook, or if
+  # Netlify doesn't answer, the page catches up on its next build, and the
+  # publish still counts as done.
+  site:
+    name: "Show it on origai.tv"
+    needs: [which, publish]
+    if: needs.which.outputs.channel != 'edge'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    environment: release
+    permissions: {}
+    steps:
+      - name: Build origai.tv again
+        env:
+          HOOK: ${{ secrets.ORIGAITV_SITE_BUILD_HOOK }}
+        run: |
+          if [[ -z $HOOK ]]; then
+            echo "The release environment has no ORIGAITV_SITE_BUILD_HOOK, so origai.tv names this ISO on its next build." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if curl -fsS --retry 3 --max-time 30 -X POST -d '{}' "$HOOK" >/dev/null; then
+            echo "Asked Netlify to build origai.tv again. Its page names this ISO in a few minutes." | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning title=origai.tv wasn't built again::Netlify didn't take the build hook. The page names this ISO on its next build."
+          fi

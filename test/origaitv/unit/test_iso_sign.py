@@ -136,6 +136,20 @@ class WhoGetsTheKeys(unittest.TestCase):
             self.assertNotIn("secrets.", publish[name])
             self.assertNotIn("environment:", publish[name])
 
+    def test_only_the_site_job_has_the_build_hook_and_nothing_else(self):
+        publish = jobs("publish-iso.yml")
+        self.assertEqual([name for name, text in publish.items() if "ORIGAITV_SITE_BUILD_HOOK }}" in text], ["site"])
+        site = publish["site"]
+        self.assertIn("environment: release", site)
+        self.assertIn("permissions: {}", site)
+        # After the publish, for a release or a candidate only.
+        self.assertIn("needs: [which, publish]", site)
+        self.assertIn("if: needs.which.outputs.channel != 'edge'", site)
+        for word in ("secrets.R2_", "secrets.AGENTV_SIGNING_KEY", "actions/checkout", "gh ", "aws "):
+            self.assertNotIn(word, site)
+        # A hook that's missing or fails is a note, not a failed publish.
+        self.assertNotIn("exit 1", site)
+
     def test_the_morning_publishes_only_a_scheduled_nights_iso(self):
         # A nightly run started by hand can check with an origaitv-iso branch
         # that isn't merged, so its ISO is never picked up on its own.
