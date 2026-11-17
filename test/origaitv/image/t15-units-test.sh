@@ -36,7 +36,7 @@ EXPOSED=9.0
 
 SANDBOXED=(origaitv-daemon origaitv-router origaitv-router-cli origaitv-build-net origaitv-npm-check
   origaitv-builder@ origaitv-builder-cli@ origaitv-builder-sign-in@)
-KEPT_IN=(origaitv-build origaitv-key origaitv-setup-apps origaitv-zone origaitv-password@)
+KEPT_IN=(origaitv-build origaitv-key origaitv-setup-apps origaitv-zone origaitv-password@ origaitv-announce)
 ROOT_HELPERS=(origaitv-firstboot origaitv-update-check origaitv-update-tv origaitv-update-after origaitv-go-back
   origaitv-go-back-cleanup origaitv-hotspot origaitv-hotspot-boot origaitv-hotspot-drop origaitv-hotspot-watch origaitv-share origaitv-shares
   origaitv-wake origaitv-app-package@ origaitv-xbox-driver origaitv-boot-splash-release)
