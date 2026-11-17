@@ -38,7 +38,7 @@ says() {
 # The pad on the TV, read off the screen, for up to <seconds>.
 wait_pad() {
   local found=0
-  ocr_finds "$1" "enter the adult pin" "$2" || found=1
+  ocr_finds "$1" "enter the pin" "$2" || found=1
   capture_console "$1"
   return $found
 }
@@ -74,7 +74,7 @@ check "the pad says what it's for (OCR)" grep -Eqi "omarchy|desk" "$RUN_DIR/succ
 guest "origaitv input key back" >"$RUN_DIR/input.log" 2>&1 || true
 wait "$asking" || true
 check "S4.5 cancelled on the TV, origaitv-pin-check refuses" grep -q "exit=1" "$RUN_DIR/check-cancel.log"
-check "and says it needs the PIN" grep -q "That needs the adult PIN." "$RUN_DIR/check-cancel.log"
+check "and says it needs the PIN" grep -q "That needs the PIN." "$RUN_DIR/check-cancel.log"
 
 # A wrong PIN is refused on the pad, and the right one lets it through.
 guest "origaitv-pin-check desktop; echo exit=\$?" >"$RUN_DIR/check-right.log" 2>&1 &

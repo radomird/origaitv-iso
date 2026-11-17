@@ -174,7 +174,7 @@ up() {
 }
 check "the daemon is back with the test index" up
 api PUT /api/pin "{\"pin\":\"$PIN\"}" >"$RUN_DIR/pin.json" || true
-check "the adult PIN is set" jq -e '.ok' "$RUN_DIR/pin.json"
+check "the PIN is set" jq -e '.ok' "$RUN_DIR/pin.json"
 check "ADR-042 add an app lists the official app that isn't on the box, from the signed index" \
   until_json /api/apps/add '[.apps[].id] == ["origaitv.standin"] and .error == null' 60
 
@@ -186,7 +186,7 @@ guest "origaitv screen apps add" >>"$RUN_DIR/screen.log" 2>&1 || true
 check "ADR-042 add an app shows the stand-in game, with its line (OCR)" ocr_finds success-add-app-list "stand-in game" 30
 capture_console "success-add-app-list"
 guest "origaitv input key enter" >>"$RUN_DIR/input.log" 2>&1 || true
-check "ADR-042 choosing it asks for the adult PIN (OCR)" ocr_finds success-add-app-pin "adult pin|adding an app" 20
+check "ADR-042 choosing it asks for the PIN (OCR)" ocr_finds success-add-app-pin "enter the pin|adding an app" 20
 capture_console "success-add-app-pin"
 check "and nothing is handed over before the PIN" \
   test -z "$(ssh_guest "jq -r '.apps[\"origaitv.standin\"] // empty' /run/origaitv-setup-apps/state.json 2>/dev/null")"

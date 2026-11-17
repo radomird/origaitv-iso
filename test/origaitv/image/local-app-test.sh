@@ -97,7 +97,7 @@ listed() {
 # The PIN pad on the TV, read off the screen, for up to <seconds>.
 wait_pad() {
   local found=0
-  ocr_finds "$1" "enter the adult pin" "$2" || found=1
+  ocr_finds "$1" "enter the pin" "$2" || found=1
   capture_console "$1"
   return $found
 }
@@ -171,7 +171,7 @@ guest "origaitv input key back" >"$RUN_DIR/input.log" 2>&1 || true
 wait "$asking" || true
 cat "$RUN_DIR/install-cancel.log"
 check "cancelled on the TV, nothing is installed" grep -q "^exit=1" "$RUN_DIR/install-cancel.log"
-check "and it says the PIN was needed" grep -q "That needs the adult PIN, so nothing was installed." "$RUN_DIR/install-cancel.log"
+check "and it says the PIN was needed" grep -q "That needs the PIN, so nothing was installed." "$RUN_DIR/install-cancel.log"
 check "the app is still 1.0.0" listed "$id 1.0.0 local"
 
 guest "origaitv app install --local $work/app --yes --stand-in; echo exit=\$?" >"$RUN_DIR/install-pin.log" 2>&1 &
