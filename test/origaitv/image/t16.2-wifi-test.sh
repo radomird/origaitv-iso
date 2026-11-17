@@ -285,7 +285,7 @@ log "The hotspot opened $(( $(opened_times) - opened )) more time(s) while it lo
 
 # An adult PIN, set as Settings sets it, so the hotspot's page has to ask.
 ssh_guest "curl -fsS --max-time 5 -X PUT -H 'Content-Type: application/json' -d '{\"pin\":\"$PIN\"}' $TV/api/pin" >"$RUN_DIR/pin.json" 2>&1 || true
-check "an adult PIN is set" jq -e '.ok == true' "$RUN_DIR/pin.json"
+check "a PIN is set" jq -e '.ok == true' "$RUN_DIR/pin.json"
 trap 'pin_off_then_cleanup "$PIN"' EXIT
 
 access_point_off

@@ -253,7 +253,7 @@ up() {
 }
 check "the daemon is back with the test index" up
 api PUT /api/pin "{\"pin\":\"$PIN\"}" >"$RUN_DIR/pin.json" || true
-check "the adult PIN is set" jq -e '.ok' "$RUN_DIR/pin.json"
+check "the PIN is set" jq -e '.ok' "$RUN_DIR/pin.json"
 check "T23.2 Settings' Games page lists both, neither on the TV" \
   until_json /api/games '[.apps[] | "\(.id) \(.installed)"] == ["origaitv.retroarch false", "origaitv.xboxcloud false"]' 60
 
@@ -266,7 +266,7 @@ capture_console "success-t23.2-games"
 guest "origaitv input key enter" >>"$RUN_DIR/input.log" 2>&1 || true
 sleep 1
 guest "origaitv input key enter" >>"$RUN_DIR/input.log" 2>&1 || true
-check "T23.2 adding RetroArch asks for the adult PIN (OCR)" ocr_finds success-t23.2-pin "adult pin|settings" 20
+check "T23.2 adding RetroArch asks for the PIN (OCR)" ocr_finds success-t23.2-pin "enter the pin|settings" 20
 capture_console "success-t23.2-pin"
 guest "origaitv input text $PIN" >>"$RUN_DIR/input.log" 2>&1 || true
 check "RetroArch is handed to root" until_file '.apps["origaitv.retroarch"].state != null' /run/origaitv-setup-apps/state.json 60
