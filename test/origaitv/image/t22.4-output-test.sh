@@ -9,7 +9,8 @@
 #     that disables it runs the same disconnect (CMonitor::onDisconnect),
 #     and Hyprland has no monitor. virtio-gpu's connector forced off
 #     through sysfs didn't take the monitor away: it was back in seconds;
-#   - input ends the ambient screen and an app opens, and Hyprland lives;
+#   - input ends the ambient screen, an app opens and another closes, and
+#     Hyprland lives;
 #   - the monitor comes back with the rule the session runs at, and the app
 #     is in front again, inside Fit to screen's margin, on the same Hyprland;
 #   - Hyprland killed with SIGSEGV comes back as the TV, not in safe mode,
@@ -125,6 +126,17 @@ check "T22.4 Hyprland lives through it, the same one as before (pid $(hyprland_p
 check "T22.4 the screen daemon knew the output was gone" grep -q "the TV's output is gone; windows stay where they are until it's back" "$RUN_DIR/origaitv-screen-gone.log"
 check "T22.4 and kept the app to put in front once it's back" grep -q "goes in front once the TV's output is back" "$RUN_DIR/origaitv-screen-gone.log"
 check "T22.4 focus on no window isn't given back" bash -c "! grep -q 'focus went to 0x;' '$RUN_DIR/origaitv-screen-gone.log'"
+
+# An app closing with no monitor: its page, then its window, as every app
+# but a game does once the TV has been off a while.
+quit=$(guest "origaitv screen quit 'http://127.0.0.1:8768/?again'" 2>&1 || true)
+printf 'quit: %s\n' "$quit" >>"$RUN_DIR/screen.log"
+quit_ok() {
+  jq -e '.ok == true' <<<"$quit" >/dev/null 2>&1
+}
+sleep 5
+check "T22.4 an app closes with no monitor ($quit)" quit_ok
+check "T22.4 and Hyprland lives through that too (pid $(hyprland_pid))" test "$(hyprland_pid)" = "$pid"
 
 # The output comes back, at the mode, scale and margin the session runs at.
 # A rule keeps what an earlier one set unless it says otherwise, so it says
