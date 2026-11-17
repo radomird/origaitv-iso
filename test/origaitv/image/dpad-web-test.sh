@@ -66,12 +66,17 @@ guest "origaitv screen open http://127.0.0.1:8766/" >>"$RUN_DIR/screen.log" 2>&1
 check "the stand-in web app opens in front" wait_title "^Stand-in$" 60
 sleep 2
 
-# Down twice: past the links along the top, to the row of tiles.
-for _ in 1 2 3; do
-  [[ $(title) =~ ^focus\ tile- ]] && break
-  press down
+# The first press lands on the biggest thing in view: a tile, the one
+# nearest the middle, which depends on the window's width. Left goes back
+# along the row to the first.
+press down
+check "the phone's first press lands on a tile, the biggest thing on the page (title: $(title))" wait_title "^focus tile-" 5
+for _ in 1 2 3 4; do
+  [[ $(title) == "focus tile-1" ]] && break
+  press left
+  sleep 0.5
 done
-check "the phone's down moves the focus to the row of tiles (title: $(title))" wait_title "^focus tile-1$" 5
+check "left goes back along the row to its first tile (title: $(title))" wait_title "^focus tile-1$" 5
 press right
 press right
 check "and right moves it along the row (title: $(title))" wait_title "^focus tile-3$" 5
@@ -154,7 +159,7 @@ scrolled() {
   return 1
 }
 wheel '{"wheel":[0,200]}'
-check "two fingers down scroll the page down, with the pointer in a corner (title: $(title))" scrolled 1 150
+check "the phone's scroll moves the page down, as two fingers going up do, with the pointer in a corner (title: $(title))" scrolled 1 150
 wheel '{"wheel":[500,0]}'
 check "and sideways slide the row across the page's middle, not the page (title: $(title))" scrolled 2 300
 check "the page itself stays where it was across (title: $(title))" scrolled 3 0 0

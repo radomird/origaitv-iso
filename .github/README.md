@@ -22,15 +22,15 @@ It's for x86_64 PCs, and installing erases the disk you pick. [origaitv-os's REA
 
 ## Getting the ISO
 
-The ISO is on [the releases page](https://github.com/radomird/origaitv-iso/releases), in the newest release. Until 1.0 is out, that's a release candidate. Its notes have the download link and the ISO's checksum. The file is named after its version, like `origaitv-1.0.0-rc2-x86_64.iso`, and it's about 6.7 GB.
+[origai.tv/download](https://origai.tv/download) gets you the newest release's ISO. Until 1.0 is out, that's a release candidate. origai.tv also shows its version, its size and its checksum. Each release's page here has the same download link and checksum in its notes. The file is named after its version, like `origaitv-1.0.0-rc3-x86_64.iso`.
 
-To check your download, grab its checksum and the checksum's signature too. They're at the ISO's address with `.sha256` and `.sha256.sig` on the end. Put them in the folder with the ISO and run this, with your ISO's version in place of `1.0.0-rc2`:
+To check your download, grab its checksum and the checksum's signature too. They're at the ISO's address with `.sha256` and `.sha256.sig` on the end. Put them in the folder with the ISO and run this, with your ISO's file name in place of `origaitv-1.0.0-rc3-x86_64.iso`. 1.0.0-rc2's files have a name that doesn't start with `origaitv-`, so for those, use the names your files have:
 
 ```
 curl -LO https://raw.githubusercontent.com/radomird/origaitv-pkgs/main/origaitv-keyring/origaitv.gpg
 gpg --import origaitv.gpg
-gpg --verify origaitv-1.0.0-rc2-x86_64.iso.sha256.sig origaitv-1.0.0-rc2-x86_64.iso.sha256
-sha256sum -c origaitv-1.0.0-rc2-x86_64.iso.sha256
+gpg --verify origaitv-1.0.0-rc3-x86_64.iso.sha256.sig origaitv-1.0.0-rc3-x86_64.iso.sha256
+sha256sum -c origaitv-1.0.0-rc3-x86_64.iso.sha256
 ```
 
 The first two lines fetch OrigaiTV's public key. You only need them once. `gpg --verify` should say "Good signature", from the key `B4D4 7D67 1A03 84BF 7516 4CF1 AD68 7DD5 C049 475F`. That tells you the checksum is mine. gpg also warns that you haven't told it to trust the key, and that's fine. `sha256sum -c` then tells you the ISO matches the checksum, and prints the ISO's name with `OK`. On a Mac it's `shasum -a 256 -c`.
