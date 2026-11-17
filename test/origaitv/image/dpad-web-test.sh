@@ -159,7 +159,7 @@ scrolled() {
   return 1
 }
 wheel '{"wheel":[0,200]}'
-check "two fingers down scroll the page down, with the pointer in a corner (title: $(title))" scrolled 1 150
+check "the phone's scroll moves the page down, as two fingers going up do, with the pointer in a corner (title: $(title))" scrolled 1 150
 wheel '{"wheel":[500,0]}'
 check "and sideways slide the row across the page's middle, not the page (title: $(title))" scrolled 2 300
 check "the page itself stays where it was across (title: $(title))" scrolled 3 0 0
