@@ -429,7 +429,7 @@ class TheNotes(unittest.TestCase):
             self.assertIn(line, lines)
         # The key it names is the one this repo pins.
         pinned = (ROOT / "configs/airootfs/usr/share/origaitv-iso/key-fingerprint").read_text().strip()
-        said = re.search(r"from the key `([0-9A-F ]+)`", result.stdout).group(1)
+        said = re.search(r"show the key `([0-9A-F ]+)`", result.stdout).group(1)
         self.assertEqual(said.replace(" ", ""), pinned)
 
     def test_an_unsigned_checksum_gets_no_signature_lines(self):

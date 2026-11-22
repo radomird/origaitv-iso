@@ -65,7 +65,7 @@ block() {
   if [[ -s $sum.sig ]]; then
     : "${ORIGAITV_OWNER:?set ORIGAITV_OWNER to the GitHub owner of origaitv-pkgs}"
     pinned=$(tr -d '[:space:]' <"$ROOT/configs/airootfs/usr/share/origaitv-iso/key-fingerprint" | sed 's/..../& /g; s/ $//')
-    echo "To check your download, run this in the folder with the ISO:"
+    echo "Verify the download before you write it to the stick. Run this in the folder with the ISO:"
     echo
     echo '```'
     echo "curl -LO $url.sha256"
@@ -76,16 +76,16 @@ block() {
     echo "sha256sum -c $file.sha256"
     echo '```'
     echo
-    echo "\`gpg --verify\` should say \"Good signature\", from the key \`$pinned\`. It also warns that you haven't told it to trust the key, and that's fine. \`sha256sum\` should say the ISO is OK."
+    echo "\`gpg --verify\` must say \`Good signature\` and show the key \`$pinned\`. A warning that the key is not certified with a trusted signature is expected. \`sha256sum -c\` must print the ISO's name with \`OK\`."
   else
-    echo "To check your download, run this in the folder with the ISO:"
+    echo "Verify the download before you write it to the stick. Run this in the folder with the ISO:"
     echo
     echo '```'
     echo "curl -LO $url.sha256"
     echo "sha256sum -c $file.sha256"
     echo '```'
     echo
-    echo "\`sha256sum\` should say the ISO is OK. This checksum isn't signed yet."
+    echo "\`sha256sum -c\` must print the ISO's name with \`OK\`. This checksum isn't signed yet."
   fi
   echo "$END"
 }

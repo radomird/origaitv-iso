@@ -22,18 +22,28 @@ It's for x86_64 PCs, and installing erases the disk you pick. [origaitv-os's REA
 
 ## Getting the ISO
 
-[origai.tv/download](https://origai.tv/download) gets you the newest release's ISO. Until 1.0 is out, that's a release candidate. origai.tv also shows its version, its size and its checksum. Each release's page here has the same download link and checksum in its notes. The file is named after its version, like `origaitv-1.0.0-rc3-x86_64.iso`.
+[origai.tv/download](https://origai.tv/download) gets you the newest release's ISO. Until 1.0 is out, that's a release candidate. origai.tv also shows its version and its size. Each release's page here has the same download link, and the ISO's SHA-256 in its notes. The file is named after its version, like `origaitv-1.0.0-rc4-x86_64.iso`.
 
-To check your download, grab its checksum and the checksum's signature too. They're at the ISO's address with `.sha256` and `.sha256.sig` on the end. Put them in the folder with the ISO and run this, with your ISO's file name in place of `origaitv-1.0.0-rc3-x86_64.iso`. 1.0.0-rc2's files have a name that doesn't start with `origaitv-`, so for those, use the names your files have:
+### Verify the download
 
-```
+Verify the ISO before you write it to the stick. A corrupted download fails partway through the install.
+
+Every ISO has a `.sha256` file and a `.sha256.sig` file next to it, at the same address. Put both in the folder with the ISO, and run these commands with your ISO's file name in place of `origaitv-1.0.0-rc4-x86_64.iso`:
+
+```bash
 curl -LO https://raw.githubusercontent.com/radomird/origaitv-pkgs/main/origaitv-keyring/origaitv.gpg
 gpg --import origaitv.gpg
-gpg --verify origaitv-1.0.0-rc3-x86_64.iso.sha256.sig origaitv-1.0.0-rc3-x86_64.iso.sha256
-sha256sum -c origaitv-1.0.0-rc3-x86_64.iso.sha256
+gpg --verify origaitv-1.0.0-rc4-x86_64.iso.sha256.sig origaitv-1.0.0-rc4-x86_64.iso.sha256
+sha256sum -c origaitv-1.0.0-rc4-x86_64.iso.sha256
 ```
 
-The first two lines fetch OrigaiTV's public key. You only need them once. `gpg --verify` should say "Good signature", from the key `B4D4 7D67 1A03 84BF 7516 4CF1 AD68 7DD5 C049 475F`. That tells you the checksum is mine. gpg also warns that you haven't told it to trust the key, and that's fine. `sha256sum -c` then tells you the ISO matches the checksum, and prints the ISO's name with `OK`. On a Mac it's `shasum -a 256 -c`.
+The first two commands fetch the OrigaiTV signing key. You only need them once.
+
+The signature proves that OrigaiTV made the checksum. The output of `gpg --verify` must say `Good signature` and show the key `B4D4 7D67 1A03 84BF 7516 4CF1 AD68 7DD5 C049 475F`. A warning that the key is not certified with a trusted signature is expected. It means only that you haven't signed the key yourself.
+
+The checksum proves that your ISO is the one it was made for. `sha256sum -c` must print the ISO's name with `OK`. On a Mac, use `shasum -a 256 -c`.
+
+1.0.0-rc2's files have names that don't start with `origaitv-`. For those, use the names your files have.
 
 There's one more ISO, for trying what's next: last night's edge build, like `origaitv-0.2.0.r831.g59f9f8164-x86_64.iso`. Edge's version is the one `origaitv version` prints on a box you install from it.
 
