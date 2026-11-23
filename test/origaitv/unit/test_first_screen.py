@@ -454,7 +454,7 @@ class Handover(unittest.TestCase):
         ui = type(sys)("orchestrator.ui")
         ui.info = calls.append
         sys.modules["orchestrator"], sys.modules["orchestrator.ui"] = package, ui
-        saved = handover.__package__, handover.HANDOVER, handover.drop_one_shot_requests, handover.ask_for_no_countdown
+        saved = handover.__package__, handover.HANDOVER, handover.RELEASE, handover.drop_one_shot_requests, handover.ask_for_no_countdown
         try:
             handover.__package__ = "orchestrator"
             handover.drop_one_shot_requests = lambda: calls.append("dropped") or []
@@ -464,8 +464,14 @@ class Handover(unittest.TestCase):
                 warnings.simplefilter("ignore", DeprecationWarning)
                 ctx = type("Ctx", (), {"target": target})()
                 handover.HANDOVER = Path(source, "missing")
+                # An ISO from a release tag writes its release with either
+                # installer, so that alone doesn't touch the firmware.
+                handover.RELEASE = Path(source, "release")
+                handover.RELEASE.write_text("1.0.0-rc5\n")
                 handover.origaitv_handover(ctx)
-                self.assertEqual(calls, [], "Omarchy's own installer leaves the firmware alone")
+                self.assertTrue(Path(target, "etc/origaitv/release").exists())
+                self.assertNotIn("dropped", calls, "Omarchy's own installer leaves the firmware alone")
+                self.assertNotIn("no countdown", calls)
                 Path(source, "var/lib/origaitv").mkdir(parents=True)
                 Path(source, "var/lib/origaitv/account.json").write_text("{}\n")
                 handover.HANDOVER = Path(source)
@@ -473,8 +479,37 @@ class Handover(unittest.TestCase):
                 self.assertIn("dropped", calls)
                 self.assertLess(calls.index("dropped"), calls.index("no countdown"), "the old requests go first")
         finally:
-            handover.__package__, handover.HANDOVER, handover.drop_one_shot_requests, handover.ask_for_no_countdown = saved
+            handover.__package__, handover.HANDOVER, handover.RELEASE, handover.drop_one_shot_requests, handover.ask_for_no_countdown = saved
             del sys.modules["orchestrator"], sys.modules["orchestrator.ui"]
+
+    def test_the_release_goes_on_the_box_with_its_build(self):
+        # T30.3: an ISO built from a release tag says which release it is,
+        # and the box keeps it where Settings, System reads it, with the
+        # build of OrigaiTV the ISO installed under it.
+        with tempfile.TemporaryDirectory() as live, tempfile.TemporaryDirectory() as target:
+            release = Path(live, "release")
+            release.write_text("1.0.0-rc4\n")
+            settings = Path(target, "usr/share/origaitv/settings")
+            settings.parent.mkdir(parents=True)
+            settings.write_text("ORIGAITV_VERSION=0.2.0.r1061.g91b63a2e0\nORIGAITV_CHANNEL=edge\n")
+            written = handover.hand_over_release(release, Path(target))
+            self.assertEqual(written, Path(target, "etc/origaitv/release"))
+            self.assertEqual(written.read_text(), "1.0.0-rc4\n0.2.0.r1061.g91b63a2e0\n")
+            self.assertEqual(written.stat().st_mode & 0o777, 0o644)
+
+    def test_the_release_alone_with_no_package_settings(self):
+        with tempfile.TemporaryDirectory() as live, tempfile.TemporaryDirectory() as target:
+            release = Path(live, "release")
+            release.write_text("1.0.0-rc4\n")
+            written = handover.hand_over_release(release, Path(target))
+            self.assertEqual(written.read_text(), "1.0.0-rc4\n")
+
+    def test_no_release_on_an_iso_from_a_branch(self):
+        with tempfile.TemporaryDirectory() as live, tempfile.TemporaryDirectory() as target:
+            self.assertIsNone(handover.hand_over_release(Path(live, "release"), Path(target)))
+            Path(live, "release").write_text("\n")
+            self.assertIsNone(handover.hand_over_release(Path(live, "release"), Path(target)))
+            self.assertFalse(Path(target, "etc/origaitv/release").exists())
 
 
 if __name__ == "__main__":
