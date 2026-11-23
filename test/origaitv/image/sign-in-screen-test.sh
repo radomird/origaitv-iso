@@ -1,13 +1,16 @@
 #!/bin/bash
 #
-# OrigaiTV's sign-in screen (ADR-032, board 15) on an installed box: a stand-in
-# app with signIn, for a sign-in page served on the box itself, says Sign in
-# until it's signed in. origaitv screen sign-in opens it the way its tile does:
-# the service's page maximized above OrigaiTV's bar in the overlay, which keeps
-# the bottom of the screen and never the keyboard. The app takes its page to
-# the site's form, the virtual keyboard fills it in as the phone will, and
-# once the site's cookie says so, the app says it's signed in: the bar goes,
-# the page is full screen again, and the tile stops saying Sign in.
+# OrigaiTV's sign-in (ADR-032, ADR-136) on an installed box: a stand-in app
+# with signIn, for a sign-in page served on the box itself, says Sign in until
+# it's signed in. origaitv screen sign-in opens it the way its tile does, with
+# another page already open in the services' Chromium, so the app's window is
+# one Chromium makes over its pipe, an ordinary browser window. The TV shows
+# only the service's page, where any app goes, with nothing of OrigaiTV's over
+# it and none of Chromium's tabs or address bar. "I'm signed in" is the
+# phone's, and asks the app now. Home ends it, with the app asked once more.
+# Opened again, the app takes its page to the site's form, the virtual
+# keyboard fills it in as the phone will, and once the site's cookie says so,
+# the app says it's signed in by itself, and the tile stops saying Sign in.
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)/test/integration.d/base-test.sh"
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/tv.sh"
@@ -91,64 +94,68 @@ signs_in() {
 }
 check "the app's tile says Sign in before it's signed in" test "$(signs_in)" = "needed"
 
+# Another page open first, so the sign-in's window is the services' second.
+guest "origaitv screen open $site/" >"$RUN_DIR/open.json" 2>&1 || true
+for _ in $(seq 1 20); do
+  guest_hyprctl "-j clients" 2>/dev/null | jq -e '.[] | select(.workspace.name == "1" and (.title | test("Check TV")))' >/dev/null 2>&1 && break
+  sleep 0.5
+done
+
 guest "origaitv screen sign-in $id" >"$RUN_DIR/sign-in.json" 2>&1 || true
 cat "$RUN_DIR/sign-in.json"
 check "origaitv screen sign-in opens the sign-in screen" jq -e '.ok == true' "$RUN_DIR/sign-in.json"
 
 height=$(guest_hyprctl "-j monitors" 2>/dev/null | jq '.[0].height / .[0].scale | floor' 2>/dev/null || echo 0)
-# shellcheck disable=SC2016 # $height is jq's own
-above_bar='$height > 0 and ([.[] | select(.workspace.name == "1")][0] | .at[1] + .size[1] <= $height - 200)'
 
-# Up to 30 s for the page, the bar, and the form. The page moves up once the
-# bar has its room, a moment after it's maximized, so that's waited for too.
+# Up to 30 s for the page and the form.
 for _ in $(seq 1 60); do
-  layers=$(guest_hyprctl "-j layers" 2>/dev/null || true)
-  clients=$(guest_hyprctl "-j clients" 2>/dev/null || true)
-  if jq -e '[.. | objects | select(.namespace? == "origaitv-signin")] | length > 0' <<<"$layers" >/dev/null 2>&1 &&
-    jq -e '.[] | select(.workspace.name == "1" and .fullscreen == 1)' <<<"$clients" >/dev/null 2>&1 &&
-    jq -e --argjson height "${height:-0}" "$above_bar" <<<"$clients" >/dev/null 2>&1 &&
-    ssh_guest "grep -q 'GET /login.html' /tmp/origaitv-sign-in-check/requests.log"; then
-    break
-  fi
+  page_fullscreen && ssh_guest "grep -q 'GET /login.html' /tmp/origaitv-sign-in-check/requests.log" && break
   sleep 0.5
 done
-echo "$layers" >"$RUN_DIR/layers.json"
-echo "$clients" >"$RUN_DIR/clients.json"
-check "the sign-in bar is in the overlay" jq -e '[.. | objects | select(.namespace? == "origaitv-signin")] | length > 0' "$RUN_DIR/layers.json"
-check "the service's page is maximized above it, not full screen" jq -e '.[] | select(.workspace.name == "1" and .fullscreen == 1)' "$RUN_DIR/clients.json"
-check "and the bar keeps the bottom of the screen: the page ends above it" \
-  jq -e --argjson height "${height:-0}" "$above_bar" "$RUN_DIR/clients.json"
+guest_hyprctl "-j layers" >"$RUN_DIR/layers.json" 2>/dev/null || true
+guest_hyprctl "-j clients" >"$RUN_DIR/clients.json" 2>/dev/null || true
 check "the app took its page to the site's sign-in form" ssh_guest "grep -q 'GET /login.html' /tmp/origaitv-sign-in-check/requests.log"
+check "nothing of OrigaiTV's is over the page: no sign-in bar" no_signin_bar
+check "the page is where an app goes: full screen, or inside Fit to screen's margin" page_fullscreen
+# With no margin, the page reaches the bottom of the screen: no room is kept
+# there for a bar.
+margin=$(ssh_guest "curl -fsS --max-time 3 http://127.0.0.1:3000/api/display" 2>/dev/null | jq -r '.margin // 0' 2>/dev/null || echo 0)
+if [[ ${margin:-0} == 0 ]]; then
+  # shellcheck disable=SC2016 # $height is jq's own
+  check "and it fills the screen, down to the bottom" \
+    jq -e --argjson height "${height:-0}" '$height > 0 and ([.[] | select(.workspace.name == "1")][0] | .at[1] + .size[1] >= $height - 2)' "$RUN_DIR/clients.json"
+fi
 sleep 2
 capture_console "success-sign-in-screen"
-# The bar's text, then its button's: beside the bar's light text on dark,
-# tesseract takes the light blue "i'm signed in" button for a picture. So the
-# button is found as the one solid block of its blue (a 9 x 9 opening wipes
-# out the bluish edges of the bar's text) and read on its own.
-: >"$RUN_DIR/bar.txt"
-# Read at 1920 x 1080 even on QEMU's 4K screen, where the crop was measured.
-if magick "$RUN_DIR/success-sign-in-screen.png" -resize '1920x1080>' -gravity south -crop 100%x22%+0+0 +repage "$RUN_DIR/.bar.png" 2>/dev/null; then
-  magick "$RUN_DIR/.bar.png" -colorspace gray -negate -resize 200% png:- 2>/dev/null |
-    tesseract - - --psm 6 >>"$RUN_DIR/bar.txt" 2>/dev/null || true
-  button=$(magick "$RUN_DIR/.bar.png" -fuzz 8% -fill black +opaque "#7aa2f7" -fill white -opaque "#7aa2f7" \
-    -morphology Open Square:4 -trim -format "%wx%h%X%Y" info: 2>/dev/null || true)
-  echo "the button: ${button:-not found}"
-  [[ -z $button ]] || magick "$RUN_DIR/.bar.png" -crop "$button" +repage -colorspace gray -resize 200% png:- 2>/dev/null |
-    tesseract - - --psm 7 >>"$RUN_DIR/bar.txt" 2>/dev/null || true
+# Chromium's own bars would show the page's address at the top. The page's
+# own words don't have it.
+: >"$RUN_DIR/top.txt"
+if magick "$RUN_DIR/success-sign-in-screen.png" -resize '1920x1080>' -gravity north -crop 100%x12%+0+0 +repage "$RUN_DIR/.top.png" 2>/dev/null; then
+  magick "$RUN_DIR/.top.png" -colorspace gray -resize 200% png:- 2>/dev/null | tesseract - - --psm 6 >"$RUN_DIR/top.txt" 2>/dev/null || true
 fi
-cat "$RUN_DIR/bar.txt"
-# When the button isn't read, what the bar looked like: its size, its
-# commonest colours, and the crop itself, small, to look at from the log.
-if ! grep -aqi 'signed in' "$RUN_DIR/bar.txt"; then
-  magick "$RUN_DIR/.bar.png" -format "the bar's crop: %wx%h\n" info: 2>/dev/null || true
-  magick "$RUN_DIR/.bar.png" -colors 12 -format %c histogram:info:- 2>/dev/null | sort -rn | head -n 12 || true
-  echo "--- the bar, as a PNG in base64 ---"
-  magick "$RUN_DIR/.bar.png" -resize 50% -colors 64 png:- 2>/dev/null | base64 -w 0 || true
-  echo
-  echo "--- end of the bar ---"
-fi
-# All of where to type: a long name running into it garbles its start.
-check "the bar says where to type, and i'm signed in (OCR)" bash -c "grep -aqi 'type on your phone or keyboard' '$RUN_DIR/bar.txt' && grep -aqi 'signed in' '$RUN_DIR/bar.txt'"
+cat "$RUN_DIR/top.txt"
+check "none of Chromium's tabs or address bar: the top of the screen has no address (OCR)" bash -c "test -s '$RUN_DIR/top.txt' && ! grep -aqE '127\\.0\\.0\\.1|8767|login\\.html' '$RUN_DIR/top.txt'"
+
+# "I'm signed in" from a phone, before the form is sent: the app is asked
+# now, and isn't yet.
+guest "origaitv screen signed-in" >"$RUN_DIR/signed-in.json" 2>&1 || true
+cat "$RUN_DIR/signed-in.json"
+check "I'm signed in asks the app now, which says it isn't yet" jq -e '.ok == true and .signedIn == false' "$RUN_DIR/signed-in.json"
+
+# With only a keyboard or the remote, Home ends the sign-in, and the app is
+# asked once more on its way out. It isn't signed in yet, so its tile still
+# says Sign in. Then the sign-in opens again, to finish it.
+guest "origaitv screen home" >/dev/null 2>&1 || true
+sleep 5
+guest "journalctl --user -b --no-pager -u origaitv-screen" >"$RUN_DIR/home.log" 2>&1 || true
+check "Home ends the sign-in" grep -q "sign-in to $id over: home" "$RUN_DIR/home.log"
+check "and the tile still says Sign in, since the app isn't signed in yet" test "$(signs_in)" = "needed"
+guest "origaitv screen sign-in $id" >"$RUN_DIR/sign-in-again.json" 2>&1 || true
+for _ in $(seq 1 60); do
+  page_fullscreen && break
+  sleep 0.5
+done
+check "the sign-in opens again" jq -e '.ok == true' "$RUN_DIR/sign-in-again.json"
 
 # Typed the way the phone will, the password from stdin.
 printf 'viewer@example.org\tcheck-%s' "$RANDOM$RANDOM" | ssh_guest "bash -lc 'origaitv input text -'" >"$RUN_DIR/input.log" 2>&1 || true
@@ -164,11 +171,10 @@ for second in $(seq 1 20); do
 done
 check "once the form is sent, the app says it's signed in, and the tile stops saying Sign in" test -n "$done_at"
 sleep 2
-check "the sign-in bar is gone" no_signin_bar
-check "and the page is back where an app goes: full screen, or inside Fit to screen's margin" page_fullscreen
+check "and the page stays where an app goes: full screen, or inside Fit to screen's margin" page_fullscreen
 
 guest "journalctl --user -b --no-pager -u origaitv-screen -u origaitv-input" >"$RUN_DIR/tv-session.log" 2>&1 || true
-check "the screen daemon says the sign-in is over because it signed in" grep -q "sign-in to $id over: signed in" "$RUN_DIR/tv-session.log"
+check "the screen daemon says the sign-in is over because it signed in, by itself" grep -q "sign-in to $id over: signed in" "$RUN_DIR/tv-session.log"
 check "nothing the keyboard typed is in the TV session's log" bash -c "! grep -q 'check-[0-9]' '$RUN_DIR/tv-session.log'"
 
 guest "origaitv screen quit $id" >/dev/null 2>&1 || true
