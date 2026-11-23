@@ -33,6 +33,7 @@ Usage: origaitv-first-screen [--render <cols>x<rows>]
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import platform
@@ -341,10 +342,11 @@ def write_private(path: Path, text: str, mode: int = 0o600) -> None:
     os.chmod(path, mode)
 
 
-def write_answers(disk: Disk, hotspot: dict | None = None) -> None:
+def write_answers(disk: Disk, hotspot: dict | None = None, pairing: str | None = None) -> None:
     """Everything the install reads, the way the configurator leaves it, and
-    what the installed box gets from this screen: the account's note, and
-    the hotspot's name and password when a phone is on it."""
+    what the installed box gets from this screen: the account's note, the
+    hotspot's name and password when a phone is on it, and the secret a
+    phone was given to pair with the box once it's back."""
     arch = iso_arch()
     kernel = kernel_choice(arch)
     if not kernel:
@@ -366,6 +368,11 @@ def write_answers(disk: Disk, hotspot: dict | None = None) -> None:
             HANDOVER / "etc/origaitv/hotspot.json",
             json.dumps({"ssid": hotspot["ssid"], "password": hotspot["password"]}) + "\n",
         )
+    # Only root reads it on the installed system, like the hotspot file. First
+    # boot moves it to the daemon's own state (install/tv/state.sh in
+    # origaitv-os).
+    if pairing:
+        write_private(HANDOVER / "etc/origaitv/phone-pairing.json", json.dumps({"secret": pairing}) + "\n")
 
 
 # --- Drawing -------------------------------------------------------------------
@@ -691,8 +698,15 @@ def first_screen() -> int:
         # The installed box opens the same network when a phone is on it,
         # or asked for this install, so that phone carries on.
         hotspot = phone if phone.get("mode") == "hotspot" and (from_phone or phone.get("joined")) else None
-        write_answers(disk, hotspot)
-        tell_phone(disks, selected, installing=disk)
+        # The pairing secret goes only when a phone was given it. Saying the
+        # install has started and reading whether a phone has it happen under
+        # the phone side's own lock, so no phone gets it in between.
+        with open(RUN / "pairing.lock", "a") as held:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            tell_phone(disks, selected, installing=disk)
+            pairing = read_json(RUN / "pairing.json")
+        secret = pairing.get("secret") if pairing.get("given") is True and isinstance(pairing.get("secret"), str) else None
+        write_answers(disk, hotspot, secret)
         return 0
 
     # The console by its own name (/dev/tty1), not /dev/tty, so it's known
