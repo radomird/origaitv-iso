@@ -205,6 +205,9 @@ jobs:
             keep=true
             echo "ISO_VERSION=$version" >>"$GITHUB_ENV"
             echo "$tag is OrigaiTV $version, for the $kind channel. Its ISO carries the $channel packages." | tee -a "$GITHUB_STEP_SUMMARY"
+            # The ISO says which release it is, and puts that on the box it
+            # installs, for Settings, System (origaitv_handover.py).
+            echo "$version" >configs/airootfs/usr/share/origaitv-iso/release
           else
             channel=${ASKED:-edge}
             keep=${KEEP:-false}

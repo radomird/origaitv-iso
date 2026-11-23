@@ -1,1 +1,3 @@
 packages/
+# The release a tag's ISO is, written by the ISO workflow for that build.
+release

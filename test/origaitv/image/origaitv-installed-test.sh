@@ -64,6 +64,28 @@ if [[ ${#carried[@]} == 1 && -f ${carried[0]} ]]; then
 else
   log "The packages the ISO was built with aren't here, so the box's origaitv isn't compared with them"
 fi
+# A release tag's ISO says which release it is, and the box it installs
+# keeps that, for Settings, System (T30.3): the ISO workflow writes the
+# file before the build. Any other ISO writes none, and the box has none.
+release_file=$ROOT/configs/airootfs/usr/share/origaitv-iso/release
+if [[ -s $release_file ]]; then
+  release=$(sed -n '1{s/[[:space:]]//g;p;}' "$release_file")
+  kept=$(ssh_guest "cat /etc/origaitv/release" 2>/dev/null || true)
+  check "T30.3 the box keeps the release it was installed from ($release, and it has ${kept:-none})" test "$kept" = "$release"
+  check "T30.3 origaitv version names it" ssh_guest "origaitv version | grep -qx 'Installed from OrigaiTV $release'"
+  # And the TV's state says it, which Settings, System shows: the release,
+  # or on stable the package's own when it's newer.
+  said=""
+  for _ in $(seq 1 24); do
+    said=$(ssh_guest "curl -fsS --max-time 3 http://127.0.0.1:3000/health" 2>/dev/null | jq -r '.release // empty' 2>/dev/null || true)
+    [[ -z $said ]] || break
+    sleep 5
+  done
+  check "T30.3 the TV says it runs a release (${said:-none}), $release on an edge package" \
+    bash -c '[[ -n $1 && ( $1 == "$2" || $3 == stable ) ]]' - "$said" "$release" "$(ssh_guest "origaitv version" | head -n 1 | sed -n 's/.*(\(.*\))$/\1/p')"
+else
+  check "an ISO with no release puts none on the box" ssh_guest "test ! -e /etc/origaitv/release"
+fi
 # OrigaiTV's repository takes its package list only with the signature. A box
 # straight from the ISO has no list yet, and one that has refreshed has both.
 # A list alone would make pacman refuse every install that doesn't refresh.
