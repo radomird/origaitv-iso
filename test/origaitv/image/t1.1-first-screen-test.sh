@@ -11,7 +11,11 @@
 # when the disk's old system had asked for the boot menu on its next start
 # (Settings, Power, restart to the boot menu). That request lives in the
 # firmware, and the stick's GRUB never reads it, so it's planted here from
-# the live system, the way logind writes it, before Enter is pressed.
+# the live system, the way logind writes it, before Enter is pressed. And
+# a key pressed as the new system first starts, in the boot loader's quiet
+# second, doesn't stop it at the menu either: the install asks for that one
+# start to have no countdown. Keys go in from the moment the firmware starts
+# the new system's boot loader, as T2.1 presses them on a later start.
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)/test/integration.d/base-test.sh"
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/tv.sh"
@@ -86,13 +90,26 @@ check "the old system's request for the boot menu is in the firmware, as Setting
   ssh_live_root "test -f $ONE_SHOT"
 log "Pressing Enter, once"
 press ret
+# The first start's boot loader: a key every tenth of a second for three
+# seconds, from when the firmware starts it. The menu does nothing with x.
+(
+  until installed_system_started "$STICK_SERIAL"; do sleep 0.05; done
+  for (( i = 0; i < 30; i++ )); do
+    press x
+    sleep 0.1
+  done
+  touch "$RUN_DIR/first-start-keys"
+) &
+keys=$!
 installed=0
 wait_for_box t1.1 && installed=1
+kill "$keys" 2>/dev/null || true
+check "T30.1 keys were pressed as the first start's boot loader began" test -e "$RUN_DIR/first-start-keys"
 check "T1.1 one press of Enter installed it, and the box restarted by itself" test "$installed" = 1
-check "T30.1 the first start after the install reached the TV with no key pressed, past the old system's request for the boot menu" \
+check "T30.1 the first start after the install reached the TV by itself, past the old system's request for the boot menu and keys in the boot loader's second" \
   test "$installed" = 1
 (( installed )) || { stop_vm; finish; }
-check "T30.1 the install dropped that request" ssh_guest "test ! -e $ONE_SHOT"
+check "T30.1 the install dropped that request, and the boot loader read and erased the one the install left" ssh_guest "test ! -e $ONE_SHOT"
 if [[ -n $QUESTIONS_SEEN ]]; then
   printf '%s\n' "$QUESTIONS_SEEN" >"$RUN_DIR/questions.txt"
   cat "$RUN_DIR/questions.txt"

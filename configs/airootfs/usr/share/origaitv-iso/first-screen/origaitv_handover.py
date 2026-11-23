@@ -14,6 +14,12 @@ with GRUB, which never reads it, so the new system's boot loader found it on
 its first start and waited there for Enter. Every later start was quiet,
 since the boot loader erases the request once it has read it.
 
+Then it asks for the first start to have no countdown at all, with
+"menu-disabled", which Limine reads for that start only (and erases), ahead
+of limine.conf's quiet second. So a key pressed on the keyboard or the remote
+as the new system first starts can't stop it at the menu either. Every later
+start keeps the quiet second, where a key still shows the menu.
+
 customize.sh puts this file in the installer and lists it among the install's
 phases, right after SSH access, when the ISO is built.
 """
@@ -72,6 +78,20 @@ def drop_one_shot_requests(efivars: Path = EFIVARS) -> list[str]:
     return dropped
 
 
+def ask_for_no_countdown(efivars: Path = EFIVARS) -> bool:
+    """Asks the boot loader to boot the next start straight away, with no
+    second for a key to stop it in. The variable's attributes (non-volatile,
+    boot and runtime), then "menu-disabled" in UTF-16 with its NUL, as the
+    boot loader interface spells it. Written in one go, as efivarfs needs."""
+    value = (0x7).to_bytes(4, "little") + "menu-disabled\0".encode("utf-16-le")
+    try:
+        with open(efivars / f"LoaderConfigTimeoutOneShot-{LOADER_GUID}", "wb", buffering=0) as out:
+            out.write(value)
+    except OSError:
+        return False
+    return True
+
+
 def origaitv_handover(ctx) -> None:
     from .ui import info
 
@@ -84,3 +104,5 @@ def origaitv_handover(ctx) -> None:
     if written:
         for name in drop_one_shot_requests():
             info(f"› OrigaiTV: dropped the old system's {name}, so the first start doesn't stop at the boot menu")
+        if ask_for_no_countdown():
+            info("› OrigaiTV: the first start boots with no countdown, so no key can stop it at the boot menu")

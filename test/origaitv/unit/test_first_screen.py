@@ -429,6 +429,17 @@ class Handover(unittest.TestCase):
             self.assertTrue(kept.exists())
             self.assertTrue(other.exists())
 
+    def test_the_first_start_is_asked_for_no_countdown(self):
+        with tempfile.TemporaryDirectory() as efivars:
+            self.assertTrue(handover.ask_for_no_countdown(Path(efivars)))
+            written = Path(efivars, f"LoaderConfigTimeoutOneShot-{handover.LOADER_GUID}").read_bytes()
+            # The attributes, then the 13 letters and the NUL Limine compares,
+            # 28 bytes, as its own check of the value has it.
+            self.assertEqual(written[:4], b"\x07\x00\x00\x00")
+            self.assertEqual(written[4:], "menu-disabled\0".encode("utf-16-le"))
+            self.assertEqual(len(written[4:]), 28)
+            self.assertFalse(handover.ask_for_no_countdown(Path(efivars, "missing")))
+
     def test_no_requests_to_drop(self):
         with tempfile.TemporaryDirectory() as efivars:
             self.assertEqual(handover.drop_one_shot_requests(Path(efivars)), [])
@@ -443,10 +454,11 @@ class Handover(unittest.TestCase):
         ui = type(sys)("orchestrator.ui")
         ui.info = calls.append
         sys.modules["orchestrator"], sys.modules["orchestrator.ui"] = package, ui
-        saved = handover.__package__, handover.HANDOVER, handover.drop_one_shot_requests
+        saved = handover.__package__, handover.HANDOVER, handover.drop_one_shot_requests, handover.ask_for_no_countdown
         try:
             handover.__package__ = "orchestrator"
             handover.drop_one_shot_requests = lambda: calls.append("dropped") or []
+            handover.ask_for_no_countdown = lambda: calls.append("no countdown") or True
             with tempfile.TemporaryDirectory() as source, tempfile.TemporaryDirectory() as target, warnings.catch_warnings():
                 # A module loaded from its file has no package of its own.
                 warnings.simplefilter("ignore", DeprecationWarning)
@@ -459,8 +471,9 @@ class Handover(unittest.TestCase):
                 handover.HANDOVER = Path(source)
                 handover.origaitv_handover(ctx)
                 self.assertIn("dropped", calls)
+                self.assertLess(calls.index("dropped"), calls.index("no countdown"), "the old requests go first")
         finally:
-            handover.__package__, handover.HANDOVER, handover.drop_one_shot_requests = saved
+            handover.__package__, handover.HANDOVER, handover.drop_one_shot_requests, handover.ask_for_no_countdown = saved
             del sys.modules["orchestrator"], sys.modules["orchestrator.ui"]
 
 
