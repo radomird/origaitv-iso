@@ -26,6 +26,7 @@ import sys
 import tempfile
 import time
 import unittest
+import warnings
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -428,6 +429,81 @@ class Handover(unittest.TestCase):
     def test_nothing_to_hand_over(self):
         with tempfile.TemporaryDirectory() as target:
             self.assertEqual(handover.hand_over(Path(target, "missing"), Path(target)), [])
+
+    def test_drops_the_old_systems_requests_for_its_next_start(self):
+        # "Restart to the boot menu" on the old system, then the stick picked
+        # from the firmware's own list: the request waits in the firmware for
+        # the new system's first start, which would stop at the menu.
+        with tempfile.TemporaryDirectory() as efivars:
+            guid = handover.LOADER_GUID
+            timeout = Path(efivars, f"LoaderConfigTimeoutOneShot-{guid}")
+            entry = Path(efivars, f"LoaderEntryOneShot-{guid}")
+            kept = Path(efivars, f"LoaderConfigTimeout-{guid}")
+            other = Path(efivars, "BootNext-8be4df61-93ca-11d2-aa0d-00e098032b8c")
+            for path in (timeout, entry, kept, other):
+                path.write_bytes(b"\x07\x00\x00\x000\x00\x00\x00")
+
+            dropped = handover.drop_one_shot_requests(Path(efivars))
+
+            self.assertEqual(dropped, ["LoaderConfigTimeoutOneShot", "LoaderEntryOneShot"])
+            self.assertFalse(timeout.exists())
+            self.assertFalse(entry.exists())
+            # What lasts past one start, and the firmware's own, stay.
+            self.assertTrue(kept.exists())
+            self.assertTrue(other.exists())
+
+    def test_the_first_start_is_asked_for_no_countdown(self):
+        with tempfile.TemporaryDirectory() as efivars:
+            self.assertTrue(handover.ask_for_no_countdown(Path(efivars)))
+            written = Path(efivars, f"LoaderConfigTimeoutOneShot-{handover.LOADER_GUID}").read_bytes()
+            # The attributes, then the 13 letters and the NUL Limine compares,
+            # 28 bytes, as its own check of the value has it.
+            self.assertEqual(written[:4], b"\x07\x00\x00\x00")
+            self.assertEqual(written[4:], "menu-disabled\0".encode("utf-16-le"))
+            self.assertEqual(len(written[4:]), 28)
+            self.assertFalse(handover.ask_for_no_countdown(Path(efivars, "missing")))
+
+    def test_no_requests_to_drop(self):
+        with tempfile.TemporaryDirectory() as efivars:
+            self.assertEqual(handover.drop_one_shot_requests(Path(efivars)), [])
+            self.assertEqual(handover.drop_one_shot_requests(Path(efivars, "missing")), [])
+
+    def test_the_install_drops_them_only_for_the_first_screen(self):
+        # The phase as the installer runs it: its log line comes from the
+        # orchestrator's ui module, stood in for here.
+        calls: list[str] = []
+        package = type(sys)("orchestrator")
+        package.__path__ = []
+        ui = type(sys)("orchestrator.ui")
+        ui.info = calls.append
+        sys.modules["orchestrator"], sys.modules["orchestrator.ui"] = package, ui
+        saved = handover.__package__, handover.HANDOVER, handover.RELEASE, handover.drop_one_shot_requests, handover.ask_for_no_countdown
+        try:
+            handover.__package__ = "orchestrator"
+            handover.drop_one_shot_requests = lambda: calls.append("dropped") or []
+            handover.ask_for_no_countdown = lambda: calls.append("no countdown") or True
+            with tempfile.TemporaryDirectory() as source, tempfile.TemporaryDirectory() as target, warnings.catch_warnings():
+                # A module loaded from its file has no package of its own.
+                warnings.simplefilter("ignore", DeprecationWarning)
+                ctx = type("Ctx", (), {"target": target})()
+                handover.HANDOVER = Path(source, "missing")
+                # An ISO from a release tag writes its release with either
+                # installer, so that alone doesn't touch the firmware.
+                handover.RELEASE = Path(source, "release")
+                handover.RELEASE.write_text("1.0.0-rc5\n")
+                handover.origaitv_handover(ctx)
+                self.assertTrue(Path(target, "etc/origaitv/release").exists())
+                self.assertNotIn("dropped", calls, "Omarchy's own installer leaves the firmware alone")
+                self.assertNotIn("no countdown", calls)
+                Path(source, "var/lib/origaitv").mkdir(parents=True)
+                Path(source, "var/lib/origaitv/account.json").write_text("{}\n")
+                handover.HANDOVER = Path(source)
+                handover.origaitv_handover(ctx)
+                self.assertIn("dropped", calls)
+                self.assertLess(calls.index("dropped"), calls.index("no countdown"), "the old requests go first")
+        finally:
+            handover.__package__, handover.HANDOVER, handover.RELEASE, handover.drop_one_shot_requests, handover.ask_for_no_countdown = saved
+            del sys.modules["orchestrator"], sys.modules["orchestrator.ui"]
 
     def test_the_release_goes_on_the_box_with_its_build(self):
         # T30.3: an ISO built from a release tag says which release it is,
