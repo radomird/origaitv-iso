@@ -11,6 +11,7 @@ from __future__ import annotations
 import http.client
 import base64
 import json
+import os
 import time
 import threading
 import fcntl
@@ -28,6 +29,23 @@ sys.path.insert(0, str(HERE))
 
 import origaitv_phone as phone_side  # noqa: E402
 import origaitv_qr  # noqa: E402
+
+
+def run_page(case: str) -> dict:
+    """Runs phone.html's own script in Node, one case of phone-page.mjs."""
+    node = shutil.which("node")
+    if not node:
+        # GitHub's runners have Node, so CI always runs these.
+        if os.environ.get("CI"):
+            raise AssertionError("these tests need node")
+        raise unittest.SkipTest("needs node")
+    result = subprocess.run(
+        [node, str(ROOT / "test/origaitv/unit/phone-page.mjs"), str(HERE / "phone.html"), case],
+        capture_output=True, text=True, timeout=30,
+    )
+    if result.returncode != 0:
+        raise AssertionError(result.stderr)
+    return json.loads(result.stdout)
 
 DISKS = [
     {"path": "/dev/nvme0n1", "name": "nvme0n1", "model": "Samsung SSD 970 EVO", "size": "500 GB"},
@@ -321,7 +339,8 @@ class Page(unittest.TestCase):
         self.assertEqual(len(base64.urlsafe_b64decode(self.phone.pairing + "==")), 16)
         self.assertNotIn("=", self.phone.pairing)
         # Not for the home network without the token, not in the page, and
-        # not for a phone that doesn't ask, as the page doesn't.
+        # not for a phone that doesn't ask. The page asks only as its phone
+        # taps Erase and install (pair=page).
         status, state = self.ask_json("GET", "/api/first?pair=1", host="127.0.0.2", via="127.0.0.2")
         self.assertEqual(status, 403)
         self.assertNotIn("pair", state)
@@ -381,12 +400,25 @@ class Page(unittest.TestCase):
         self.assertTrue(json.loads((self.run_dir / "pairing.json").read_text())["wait"])
 
     def test_the_page_asks_for_its_remotes_link_before_it_installs_and_offers_it_after(self):
-        page = (HERE / "phone.html").read_text()
-        self.assertIn('fetch("/api/first?pair=page"', page)
-        self.assertLess(page.index("await askForRemote();"), page.index('await send("/api/first/install", picked);'))
-        self.assertIn("remote = `http://origaitv.local:${answer.pair.port || 3001}/#pair=${answer.pair.secret}`;", page)
-        for words in ("Copy your remote's link", "Open it in your browser once your TV is on your Wi-Fi", "Copied"):
-            self.assertIn(words, page)
+        page = run_page("pair-answered")
+        self.assertEqual(page["asked"][-2:], ["/api/first?pair=page", "/api/first/install"])
+        self.assertFalse(page["installingHidden"])
+        self.assertFalse(page["keepHidden"], "the link is offered while the TV installs")
+        self.assertEqual(page["link"], f"http://origaitv.local:3001/#pair={'A' * 22}")
+        self.assertEqual((page["copy"], page["copied"]), ("Copied", page["link"]))
+
+    def test_the_page_offers_no_link_when_the_stick_gives_no_secret(self):
+        page = run_page("no-pair")
+        self.assertIn("/api/first/install", page["asked"])
+        self.assertFalse(page["installingHidden"])
+        self.assertTrue(page["keepHidden"])
+        self.assertEqual(page["link"], "")
+
+    def test_a_stick_that_never_answers_doesnt_hold_the_install_back(self):
+        page = run_page("pair-never-answers")
+        self.assertFalse(page["installBeforeLimit"], "it waits a little")
+        self.assertEqual(page["asked"][-1], "/api/first/install", "then installs without the link")
+        self.assertTrue(page["keepHidden"])
 
     def test_t30_2_no_secret_once_the_install_has_started(self):
         self.ask_json("POST", "/api/first/install", {"disk": "/dev/sda", "token": self.phone.token})

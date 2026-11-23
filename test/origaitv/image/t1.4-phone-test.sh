@@ -187,13 +187,19 @@ page=$(phone_curl "http://10.42.0.1/")
 check "the page comes with the token" bash -c '[[ $1 == *"const TOKEN = \"$2\""* ]]' _ "$page" "$token"
 state=$(phone_curl "http://10.42.0.1/api/first")
 check "it lists the disk the TV lists" jq -e '.step == 1 and (.disks | map(.path) | index("/dev/vda") != null)' <<<"$state"
-# The page doesn't ask for a pairing secret. An app does, and gets the
-# token with it, which it has no page to read from.
+# No secret for a phone that doesn't ask. An app asks with pair=1, and gets
+# the token with it, which it has no page to read from. The stick's own page
+# asks with pair=page as its phone taps Erase and install, and gets the same
+# secret, for the link it offers. With an app asking too, the TV still waits
+# for the app's phone.
 check "T30.2 the stick gives no pairing secret to a phone that doesn't ask" jq -e 'has("pair") | not' <<<"$state"
 state=$(phone_curl "'http://10.42.0.1/api/first?pair=1'")
 pair_secret=$(jq -r '.pair.secret // empty' <<<"$state" 2>/dev/null || true)
 check "T30.2 the stick gives the phone a secret to pair with the installed TV, and the token" \
   jq -e --arg token "$token" '.token == $token and .pair.port == 3001 and (.pair.secret | test("^[A-Za-z0-9_-]{22}$"))' <<<"$state"
+page_state=$(phone_curl "'http://10.42.0.1/api/first?pair=page'")
+check "T30.2 the stick's page gets the same secret, for its link" \
+  jq -e --arg secret "$pair_secret" '$secret != "" and .pair.secret == $secret' <<<"$page_state"
 
 install() {
   phone_curl "-o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '$1' http://10.42.0.1/api/first/install"
@@ -241,6 +247,7 @@ check "readable by root only" test "$(ssh_guest "sudo -n stat -c %a /etc/origait
 stick_pairing=$(ssh_guest "sudo -n cat /var/lib/origaitv/daemon/stick-pairing.json" 2>/dev/null || true)
 check "T30.2 the installed TV has the phone's secret, in the daemon's state" \
   jq -e --arg secret "$pair_secret" '$secret != "" and .secret == $secret' <<<"$stick_pairing"
+check "T30.2 and it waits for the app's phone, though the page asked too" jq -e '.wait == true' <<<"$stick_pairing"
 check "only the daemon reads it" \
   test "$(ssh_guest "sudo -n stat -c '%a %U' /var/lib/origaitv/daemon/stick-pairing.json" 2>/dev/null)" = "600 origaitv-server"
 check "and the stick's copy is gone" ssh_guest "sudo -n test ! -e /etc/origaitv/phone-pairing.json"
