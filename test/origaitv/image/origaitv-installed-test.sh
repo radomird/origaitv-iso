@@ -81,6 +81,7 @@ if [[ -s $release_file ]]; then
     [[ -z $said ]] || break
     sleep 5
   done
+  # shellcheck disable=SC2016 # the single quotes hold the inner bash's own
   check "T30.3 the TV says it runs a release (${said:-none}), $release on an edge package" \
     bash -c '[[ -n $1 && ( $1 == "$2" || $3 == stable ) ]]' - "$said" "$release" "$(ssh_guest "origaitv version" | head -n 1 | sed -n 's/.*(\(.*\))$/\1/p')"
 else
