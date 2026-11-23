@@ -6,6 +6,14 @@ marker, which says its password is one nobody knows yet. This copies them
 onto the new system, owned by root. With nothing there (an autoinstall, or
 Omarchy's own installer after Ctrl+C) it does nothing.
 
+It also drops what the disk's old system asked its boot loader for on its
+next start only. "Restart to the boot menu" in Settings, under Power, asks
+for the menu with no countdown, and so does systemd's --boot-loader-menu.
+That request lives in the firmware, not on the disk. The USB stick starts
+with GRUB, which never reads it, so the new system's boot loader found it on
+its first start and waited there for Enter. Every later start was quiet,
+since the boot loader erases the request once it has read it.
+
 customize.sh puts this file in the installer and lists it among the install's
 phases, right after SSH access, when the ISO is built.
 """
@@ -14,9 +22,15 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 from pathlib import Path
 
 HANDOVER = Path("/root/origaitv-handover")
+EFIVARS = Path("/sys/firmware/efi/efivars")
+# systemd's boot loader interface: its variables' vendor GUID, and the two a
+# system sets for its next start only (the menu's timeout, and an entry).
+LOADER_GUID = "4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"
+ONE_SHOT = ("LoaderConfigTimeoutOneShot", "LoaderEntryOneShot")
 
 
 def hand_over(source: Path, target: Path) -> list[Path]:
@@ -40,9 +54,33 @@ def hand_over(source: Path, target: Path) -> list[Path]:
     return written
 
 
+def drop_one_shot_requests(efivars: Path = EFIVARS) -> list[str]:
+    """Removes the boot loader requests for the next start only, which the
+    disk's old system may have left in the firmware. Returns the names it
+    removed. efivarfs makes each variable immutable, so that goes first."""
+    dropped: list[str] = []
+    for name in ONE_SHOT:
+        path = efivars / f"{name}-{LOADER_GUID}"
+        if not path.exists():
+            continue
+        subprocess.run(["chattr", "-i", str(path)], capture_output=True, check=False)
+        try:
+            path.unlink()
+        except OSError:
+            continue
+        dropped.append(name)
+    return dropped
+
+
 def origaitv_handover(ctx) -> None:
     from .ui import info
 
     written = hand_over(HANDOVER, Path(ctx.target))
     for path in written:
         info(f"› OrigaiTV: /{path.relative_to(ctx.target)}")
+    # Only for OrigaiTV's first screen, which always erases the whole disk.
+    # Omarchy's own installer can install beside another system, whose
+    # requests aren't ours to drop.
+    if written:
+        for name in drop_one_shot_requests():
+            info(f"› OrigaiTV: dropped the old system's {name}, so the first start doesn't stop at the boot menu")

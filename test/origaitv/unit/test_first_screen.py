@@ -26,6 +26,7 @@ import sys
 import tempfile
 import time
 import unittest
+import warnings
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -405,6 +406,62 @@ class Handover(unittest.TestCase):
     def test_nothing_to_hand_over(self):
         with tempfile.TemporaryDirectory() as target:
             self.assertEqual(handover.hand_over(Path(target, "missing"), Path(target)), [])
+
+    def test_drops_the_old_systems_requests_for_its_next_start(self):
+        # "Restart to the boot menu" on the old system, then the stick picked
+        # from the firmware's own list: the request waits in the firmware for
+        # the new system's first start, which would stop at the menu.
+        with tempfile.TemporaryDirectory() as efivars:
+            guid = handover.LOADER_GUID
+            timeout = Path(efivars, f"LoaderConfigTimeoutOneShot-{guid}")
+            entry = Path(efivars, f"LoaderEntryOneShot-{guid}")
+            kept = Path(efivars, f"LoaderConfigTimeout-{guid}")
+            other = Path(efivars, "BootNext-8be4df61-93ca-11d2-aa0d-00e098032b8c")
+            for path in (timeout, entry, kept, other):
+                path.write_bytes(b"\x07\x00\x00\x000\x00\x00\x00")
+
+            dropped = handover.drop_one_shot_requests(Path(efivars))
+
+            self.assertEqual(dropped, ["LoaderConfigTimeoutOneShot", "LoaderEntryOneShot"])
+            self.assertFalse(timeout.exists())
+            self.assertFalse(entry.exists())
+            # What lasts past one start, and the firmware's own, stay.
+            self.assertTrue(kept.exists())
+            self.assertTrue(other.exists())
+
+    def test_no_requests_to_drop(self):
+        with tempfile.TemporaryDirectory() as efivars:
+            self.assertEqual(handover.drop_one_shot_requests(Path(efivars)), [])
+            self.assertEqual(handover.drop_one_shot_requests(Path(efivars, "missing")), [])
+
+    def test_the_install_drops_them_only_for_the_first_screen(self):
+        # The phase as the installer runs it: its log line comes from the
+        # orchestrator's ui module, stood in for here.
+        calls: list[str] = []
+        package = type(sys)("orchestrator")
+        package.__path__ = []
+        ui = type(sys)("orchestrator.ui")
+        ui.info = calls.append
+        sys.modules["orchestrator"], sys.modules["orchestrator.ui"] = package, ui
+        saved = handover.__package__, handover.HANDOVER, handover.drop_one_shot_requests
+        try:
+            handover.__package__ = "orchestrator"
+            handover.drop_one_shot_requests = lambda: calls.append("dropped") or []
+            with tempfile.TemporaryDirectory() as source, tempfile.TemporaryDirectory() as target, warnings.catch_warnings():
+                # A module loaded from its file has no package of its own.
+                warnings.simplefilter("ignore", DeprecationWarning)
+                ctx = type("Ctx", (), {"target": target})()
+                handover.HANDOVER = Path(source, "missing")
+                handover.origaitv_handover(ctx)
+                self.assertEqual(calls, [], "Omarchy's own installer leaves the firmware alone")
+                Path(source, "var/lib/origaitv").mkdir(parents=True)
+                Path(source, "var/lib/origaitv/account.json").write_text("{}\n")
+                handover.HANDOVER = Path(source)
+                handover.origaitv_handover(ctx)
+                self.assertIn("dropped", calls)
+        finally:
+            handover.__package__, handover.HANDOVER, handover.drop_one_shot_requests = saved
+            del sys.modules["orchestrator"], sys.modules["orchestrator.ui"]
 
 
 if __name__ == "__main__":
