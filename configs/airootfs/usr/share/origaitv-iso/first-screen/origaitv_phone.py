@@ -17,9 +17,12 @@ sees no disks without it. The token erases once.
 
 A phone that asks gets a pairing secret too, for the installed TV: 16
 random bytes, given only where the disks are (on the hotspot, or with the
-token), only until the install starts, and only to a phone that asks for it
-(GET /api/first?pair=1, as the app does). The page doesn't ask, since a
-browser on the stick's Wi-Fi can't keep a pairing for the TV's own page. The first screen hands it to the box
+token), only until the install starts, and only to a phone that asks for it.
+An app asks with GET /api/first?pair=1, and the TV waits for it after the
+restart. The stick's own page asks with pair=page, as its phone taps Erase
+and install: a browser on the stick's Wi-Fi can't keep a pairing for the
+TV's own page, so the page hands its phone a link to open in its own
+browser later, and the TV shows its code meanwhile rather than wait. The first screen hands it to the box
 when a phone took it, and once the box is back, that phone pairs with it
 as with the TV's own QR code, so nobody scans a second code. docs/phone-api.md
 in origaitv-os has what an app reads and calls.
@@ -301,15 +304,18 @@ class Phone:
         # For the installed TV: base64url with no padding, as the TV reads it.
         self.pairing = base64.urlsafe_b64encode(secrets.token_bytes(16)).rstrip(b"=").decode()
         self.given = False
+        # Whether a phone that asked will pair by itself once the TV is back,
+        # as the app does, so the TV waits for it before it shows a code.
+        self.wait = False
         self.save_pairing()
 
     def save_pairing(self) -> None:
         """What the first screen hands over: the secret, and whether a phone
         has it. Written before a phone can see it, so the first screen never
         hands over a secret no phone has, or misses one a phone was given."""
-        write_json(RUN / "pairing.json", {"secret": self.pairing, "given": self.given})
+        write_json(RUN / "pairing.json", {"secret": self.pairing, "given": self.given, "wait": self.wait})
 
-    def give_pairing(self) -> dict | None:
+    def give_pairing(self, wait: bool = True) -> dict | None:
         """The secret for a phone that sees the disks, until the install starts.
         The first screen takes the same lock (pairing.lock) to say the install
         has started and read whether a phone has the secret, so a phone given
@@ -318,8 +324,9 @@ class Phone:
             fcntl.flock(held, fcntl.LOCK_EX)
             if self.spent or screen().get("step", 1) != 1:
                 return None
-            if not self.given:
+            if not self.given or (wait and not self.wait):
                 self.given = True
+                self.wait = self.wait or wait
                 self.save_pairing()
         return {"secret": self.pairing, "port": PHONE_PORT}
 
@@ -400,7 +407,8 @@ def make_handler(phone: Phone):
                 # so it's here too, as the page has it.
                 if self.on_hotspot() and not phone.spent:
                     answer["token"] = phone.token
-                pairing = phone.give_pairing() if "pair=1" in query.split("&") else None
+                asked = query.split("&")
+                pairing = phone.give_pairing(wait=True) if "pair=1" in asked else phone.give_pairing(wait=False) if "pair=page" in asked else None
                 if pairing:
                     answer["pair"] = pairing
                 self.json(200, answer)
