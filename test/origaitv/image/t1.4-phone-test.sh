@@ -16,6 +16,10 @@
 # The box restarts by itself, opens the same network with the same password,
 # and the phone joins it again and gets the installed box's page.
 #
+# T30.2: the stick also gives that phone a secret to pair with, and hands it
+# to the box. Back on the box's network, the phone pairs with it on the
+# phones' port, as the app does, and setup shows no code to scan.
+#
 # The installed box's account has a password nobody knows, so while it
 # installs, the harness gives it sudo for this VM only, and the simulated
 # radios at boot, the way tv.sh's passwordless_sudo does on the base image.
@@ -183,6 +187,10 @@ page=$(phone_curl "http://10.42.0.1/")
 check "the page comes with the token" bash -c '[[ $1 == *"const TOKEN = \"$2\""* ]]' _ "$page" "$token"
 state=$(phone_curl "http://10.42.0.1/api/first")
 check "it lists the disk the TV lists" jq -e '.step == 1 and (.disks | map(.path) | index("/dev/vda") != null)' <<<"$state"
+# What an app reads here: the token, and the secret for the installed TV.
+pair_secret=$(jq -r '.pair.secret // empty' <<<"$state" 2>/dev/null || true)
+check "T30.2 the stick gives the phone a secret to pair with the installed TV, and the token" \
+  jq -e --arg token "$token" '.token == $token and .pair.port == 3001 and (.pair.secret | test("^[A-Za-z0-9_-]{22}$"))' <<<"$state"
 
 install() {
   phone_curl "-o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '$1' http://10.42.0.1/api/first/install"
@@ -227,6 +235,12 @@ handed=$(ssh_guest "sudo -n cat /etc/origaitv/hotspot.json" 2>/dev/null || true)
 check "the installed box has the network's name and password" \
   jq -e --arg ssid "$ssid" --arg password "$password" '.ssid == $ssid and .password == $password' <<<"$handed"
 check "readable by root only" test "$(ssh_guest "sudo -n stat -c %a /etc/origaitv/hotspot.json" 2>/dev/null)" = 600
+stick_pairing=$(ssh_guest "sudo -n cat /var/lib/origaitv/daemon/stick-pairing.json" 2>/dev/null || true)
+check "T30.2 the installed TV has the phone's secret, in the daemon's state" \
+  jq -e --arg secret "$pair_secret" '$secret != "" and .secret == $secret' <<<"$stick_pairing"
+check "only the daemon reads it" \
+  test "$(ssh_guest "sudo -n stat -c '%a %U' /var/lib/origaitv/daemon/stick-pairing.json" 2>/dev/null)" = "600 origaitv-server"
+check "and the stick's copy is gone" ssh_guest "sudo -n test ! -e /etc/origaitv/phone-pairing.json"
 
 # The installed box's own setup hotspot, with the same name and password.
 box_state() {
@@ -275,6 +289,22 @@ box_sudo "ip netns exec phone ip addr add $phone_address/24 dev $phone_if" >/dev
 box_page=$(box_sudo "ip netns exec phone curl -s --max-time 10 http://10.42.0.1/" 2>/dev/null || true)
 check "T1.4 and gets the installed box's page" grep -q "companion-web/setup.ts" <<<"$box_page"
 capture_console "success-T1.4-tv-setup"
+
+# The phone pairs with the stick's secret on the phones' port, over the
+# box's own network, with nothing on the TV to scan.
+check "T30.2 setup waits for the stick's phone" \
+  bash -c 'jq -e ".stickPhone == true" <<<"$1"' _ "$(ssh_guest "curl -s --max-time 10 http://127.0.0.1:3000/api/setup" 2>/dev/null)"
+box_sudo "ip netns exec phone env ORIGAITV_PHONE_URL=http://10.42.0.1:3001 ORIGAITV_PAIR_SECRET=$pair_secret origaitv-phone-call pair-secret 'the stick phone'" \
+  >"$RUN_DIR/stick-pair.txt" 2>&1 || true
+key_file=$(tail -n 1 "$RUN_DIR/stick-pair.txt")
+check "T30.2 the phone from the stick pairs with the installed TV, on the TV's own network" \
+  box_sudo "ip netns exec phone env ORIGAITV_PHONE_URL=http://10.42.0.1:3001 origaitv-phone-call $key_file GET /api/phone/state >/dev/null"
+setup_after=$(ssh_guest "curl -s --max-time 10 http://127.0.0.1:3000/api/setup" 2>/dev/null || true)
+check "T30.2 setup has it as paired, with no phone left to wait for" \
+  jq -e '.stickPhone == false and (.phones | index("the stick phone") != null)' <<<"$setup_after"
+check "T30.2 and no pairing code was shown for it" \
+  bash -c 'jq -e ".pairing == null" <<<"$1"' _ "$(ssh_guest "curl -s --max-time 10 http://127.0.0.1:3000/api/phones" 2>/dev/null)"
+capture_console "success-T30.2-paired"
 
 stop_vm
 finish
