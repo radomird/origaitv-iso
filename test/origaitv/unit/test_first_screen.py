@@ -256,15 +256,20 @@ class Drawing(unittest.TestCase):
 class Keys(unittest.TestCase):
     """The whole screen in a pseudo-terminal, with two disks."""
 
-    def drive(self, keys: list[bytes], phone: dict | None = None, asks: list[dict] | None = None) -> tuple[int, str, Path]:
+    def drive(
+        self, keys: list[bytes], phone: dict | None = None, asks: list[dict] | None = None, pairing: dict | None = None
+    ) -> tuple[int, str, Path]:
         """Runs the screen with these keys pressed, and what the phone's side
-        would write: phone.json before it starts, and each ask in turn."""
+        would write: phone.json and pairing.json before it starts, and each
+        ask in turn."""
         work = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, work, True)
         run = work / "run"
         run.mkdir()
         if phone:
             (run / "phone.json").write_text(json.dumps(phone))
+        if pairing:
+            (run / "pairing.json").write_text(json.dumps(pairing))
         pid, fd = pty.fork()
         if pid == 0:  # the screen, with the pty as its console
             try:
@@ -342,6 +347,24 @@ class Keys(unittest.TestCase):
         status, _, work = self.drive([b"\x03"], phone=HOTSPOT, asks=[{"install": "/dev/sdz"}])
         self.assertEqual(status, 1)
         self.assertFalse((work / "user_configuration.json").exists())
+
+    def test_t30_2_the_pairing_secret_goes_to_the_box_only_when_a_phone_was_given_it(self):
+        # Twenty-two letters, the length of a real one, and plainly not one.
+        secret = "A" * 22
+        handed = "origaitv-handover/etc/origaitv/phone-pairing.json"
+        _, _, work = self.drive([b"\r"], phone=HOTSPOT, pairing={"secret": secret, "given": False})
+        self.assertFalse((work / handed).exists(), "no phone has it, so the box doesn't need it")
+        status, _, work = self.drive(
+            [], phone={**HOTSPOT, "joined": True}, asks=[{"install": "/dev/sda"}], pairing={"secret": secret, "given": True}
+        )
+        self.assertEqual(status, 0)
+        self.assertEqual(json.loads((work / handed).read_text()), {"secret": secret})
+        self.assertEqual((work / handed).stat().st_mode & 0o777, 0o600, "root's only on the box")
+        # A phone that had the token on the home network gets it handed too.
+        _, _, work = self.drive([b"\r"], pairing={"secret": secret, "given": True})
+        self.assertTrue((work / handed).exists())
+        _, _, work = self.drive([b"\r"])
+        self.assertFalse((work / handed).exists())
 
     def test_enter_hands_the_hotspot_over_only_when_a_phone_is_on_it(self):
         _, _, work = self.drive([b"\r"], phone=HOTSPOT)
