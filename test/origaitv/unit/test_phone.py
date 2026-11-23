@@ -11,6 +11,9 @@ from __future__ import annotations
 import http.client
 import base64
 import json
+import time
+import threading
+import fcntl
 import shutil
 import subprocess
 import sys
@@ -344,6 +347,24 @@ class Page(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(state["pair"]["secret"], self.phone.pairing)
         self.assertNotIn("token", state)
+
+    def test_t30_2_a_phone_asking_as_the_install_starts_waits_for_it_and_gets_none(self):
+        # The first screen holds the lock while it says the install has
+        # started and reads whether a phone has the secret.
+        held = open(self.run_dir / "pairing.lock", "a")
+        fcntl.flock(held, fcntl.LOCK_EX)
+        answers = []
+        asking = threading.Thread(target=lambda: answers.append(self.phone.give_pairing()))
+        asking.start()
+        time.sleep(0.3)
+        self.assertEqual(answers, [], "it waits for the first screen")
+        (self.run_dir / "screen.json").write_text(json.dumps({"step": 2, "disks": DISKS, "installing": "/dev/sda"}))
+        self.assertFalse(json.loads((self.run_dir / "pairing.json").read_text())["given"])
+        fcntl.flock(held, fcntl.LOCK_UN)
+        held.close()
+        asking.join(5)
+        self.assertEqual(answers, [None])
+        self.assertFalse(json.loads((self.run_dir / "pairing.json").read_text())["given"], "so the box isn't told to wait for it")
 
     def test_t30_2_no_secret_once_the_install_has_started(self):
         self.ask_json("POST", "/api/first/install", {"disk": "/dev/sda", "token": self.phone.token})

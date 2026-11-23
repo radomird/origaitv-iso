@@ -41,6 +41,7 @@ Usage: origaitv_phone.py
 from __future__ import annotations
 
 import base64
+import fcntl
 import hmac
 import ipaddress
 import json
@@ -309,8 +310,12 @@ class Phone:
         write_json(RUN / "pairing.json", {"secret": self.pairing, "given": self.given})
 
     def give_pairing(self) -> dict | None:
-        """The secret for a phone that sees the disks, until the install starts."""
-        with self.lock:
+        """The secret for a phone that sees the disks, until the install starts.
+        The first screen takes the same lock (pairing.lock) to say the install
+        has started and read whether a phone has the secret, so a phone given
+        it is always one the box hears about."""
+        with self.lock, open(RUN / "pairing.lock", "a") as held:
+            fcntl.flock(held, fcntl.LOCK_EX)
             if self.spent or screen().get("step", 1) != 1:
                 return None
             if not self.given:

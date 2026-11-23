@@ -33,6 +33,7 @@ Usage: origaitv-first-screen [--render <cols>x<rows>]
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import platform
@@ -697,11 +698,15 @@ def first_screen() -> int:
         # The installed box opens the same network when a phone is on it,
         # or asked for this install, so that phone carries on.
         hotspot = phone if phone.get("mode") == "hotspot" and (from_phone or phone.get("joined")) else None
-        # The pairing secret goes only when a phone was given it.
-        pairing = read_json(RUN / "pairing.json")
+        # The pairing secret goes only when a phone was given it. Saying the
+        # install has started and reading whether a phone has it happen under
+        # the phone side's own lock, so no phone gets it in between.
+        with open(RUN / "pairing.lock", "a") as held:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            tell_phone(disks, selected, installing=disk)
+            pairing = read_json(RUN / "pairing.json")
         secret = pairing.get("secret") if pairing.get("given") is True and isinstance(pairing.get("secret"), str) else None
         write_answers(disk, hotspot, secret)
-        tell_phone(disks, selected, installing=disk)
         return 0
 
     # The console by its own name (/dev/tty1), not /dev/tty, so it's known
