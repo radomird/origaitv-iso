@@ -21,10 +21,27 @@ HANDOVER = Path("/root/origaitv-handover")
 
 # The release this ISO is, like 1.0.0-rc4, when it was built from a release
 # tag: the ISO workflow writes it before the build. The box keeps it in
-# /etc/origaitv/release, and Settings, System shows it, since an edge
-# package's own version is a build's. An ISO built from a branch has none.
+# /etc/origaitv/release, with the build of OrigaiTV the ISO installed on the
+# line under it, like 0.2.0.r1061.g91b63a2e0. Settings, System says the box
+# runs that release while it runs that build, and once an update on edge
+# moves it on, that it was installed from it. An ISO built from a branch has
+# no release.
 RELEASE = Path("/usr/share/origaitv-iso/release")
 RELEASE_ON_BOX = Path("etc/origaitv/release")
+# The installed package's settings, where its version is.
+SETTINGS_ON_BOX = Path("usr/share/origaitv/settings")
+
+
+def installed_build(target: Path) -> str:
+    """The version of OrigaiTV on target, from its package's settings, or ""."""
+    try:
+        text = (target / SETTINGS_ON_BOX).read_text()
+    except OSError:
+        return ""
+    for line in text.splitlines():
+        if line.startswith("ORIGAITV_VERSION="):
+            return line.split("=", 1)[1].strip().strip("\"'")
+    return ""
 
 
 def hand_over(source: Path, target: Path) -> list[Path]:
@@ -50,7 +67,8 @@ def hand_over(source: Path, target: Path) -> list[Path]:
 
 def hand_over_release(source: Path, target: Path) -> Path | None:
     """Writes the ISO's release onto target, readable by everyone, when the
-    ISO has one. Returns the path it wrote, or None."""
+    ISO has one, with the build target has on the line under it. Returns
+    the path it wrote, or None."""
     try:
         release = source.read_text().split("\n")[0].strip()
     except OSError:
@@ -59,7 +77,8 @@ def hand_over_release(source: Path, target: Path) -> Path | None:
         return None
     destination = target / RELEASE_ON_BOX
     destination.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
-    destination.write_text(release + "\n")
+    build = installed_build(target)
+    destination.write_text(release + "\n" + (build + "\n" if build else ""))
     destination.chmod(0o644)
     if os.geteuid() == 0:
         os.chown(destination, 0, 0)

@@ -406,16 +406,27 @@ class Handover(unittest.TestCase):
         with tempfile.TemporaryDirectory() as target:
             self.assertEqual(handover.hand_over(Path(target, "missing"), Path(target)), [])
 
-    def test_the_release_goes_on_the_box(self):
+    def test_the_release_goes_on_the_box_with_its_build(self):
         # T30.3: an ISO built from a release tag says which release it is,
-        # and the box keeps it where Settings, System reads it.
+        # and the box keeps it where Settings, System reads it, with the
+        # build of OrigaiTV the ISO installed under it.
+        with tempfile.TemporaryDirectory() as live, tempfile.TemporaryDirectory() as target:
+            release = Path(live, "release")
+            release.write_text("1.0.0-rc4\n")
+            settings = Path(target, "usr/share/origaitv/settings")
+            settings.parent.mkdir(parents=True)
+            settings.write_text("ORIGAITV_VERSION=0.2.0.r1061.g91b63a2e0\nORIGAITV_CHANNEL=edge\n")
+            written = handover.hand_over_release(release, Path(target))
+            self.assertEqual(written, Path(target, "etc/origaitv/release"))
+            self.assertEqual(written.read_text(), "1.0.0-rc4\n0.2.0.r1061.g91b63a2e0\n")
+            self.assertEqual(written.stat().st_mode & 0o777, 0o644)
+
+    def test_the_release_alone_with_no_package_settings(self):
         with tempfile.TemporaryDirectory() as live, tempfile.TemporaryDirectory() as target:
             release = Path(live, "release")
             release.write_text("1.0.0-rc4\n")
             written = handover.hand_over_release(release, Path(target))
-            self.assertEqual(written, Path(target, "etc/origaitv/release"))
             self.assertEqual(written.read_text(), "1.0.0-rc4\n")
-            self.assertEqual(written.stat().st_mode & 0o777, 0o644)
 
     def test_no_release_on_an_iso_from_a_branch(self):
         with tempfile.TemporaryDirectory() as live, tempfile.TemporaryDirectory() as target:
