@@ -187,7 +187,10 @@ page=$(phone_curl "http://10.42.0.1/")
 check "the page comes with the token" bash -c '[[ $1 == *"const TOKEN = \"$2\""* ]]' _ "$page" "$token"
 state=$(phone_curl "http://10.42.0.1/api/first")
 check "it lists the disk the TV lists" jq -e '.step == 1 and (.disks | map(.path) | index("/dev/vda") != null)' <<<"$state"
-# What an app reads here: the token, and the secret for the installed TV.
+# The page doesn't ask for a pairing secret. An app does, and gets the
+# token with it, which it has no page to read from.
+check "T30.2 the stick gives no pairing secret to a phone that doesn't ask" jq -e 'has("pair") | not' <<<"$state"
+state=$(phone_curl "'http://10.42.0.1/api/first?pair=1'")
 pair_secret=$(jq -r '.pair.secret // empty' <<<"$state" 2>/dev/null || true)
 check "T30.2 the stick gives the phone a secret to pair with the installed TV, and the token" \
   jq -e --arg token "$token" '.token == $token and .pair.port == 3001 and (.pair.secret | test("^[A-Za-z0-9_-]{22}$"))' <<<"$state"

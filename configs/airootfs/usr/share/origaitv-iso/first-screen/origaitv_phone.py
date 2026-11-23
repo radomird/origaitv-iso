@@ -15,9 +15,11 @@ card that can host a network, the code is the box's address on the home
 network with the token in it, and a phone there only gets in with that: it
 sees no disks without it. The token erases once.
 
-The same phone gets a pairing secret, for the installed TV: 16 random
-bytes, given only where the disks are (on the hotspot, or with the token)
-and only until the install starts. The first screen hands it to the box
+A phone that asks gets a pairing secret too, for the installed TV: 16
+random bytes, given only where the disks are (on the hotspot, or with the
+token), only until the install starts, and only to a phone that asks for it
+(GET /api/first?pair=1, as the app does). The page doesn't ask, since a
+browser on the stick's Wi-Fi can't keep a pairing for the TV's own page. The first screen hands it to the box
 when a phone took it, and once the box is back, that phone pairs with it
 as with the TV's own QR code, so nobody scans a second code. docs/phone-api.md
 in origaitv-os has what an app reads and calls.
@@ -371,7 +373,7 @@ def make_handler(phone: Phone):
         def do_GET(self) -> None:  # noqa: N802
             if self.captive():
                 return
-            path = self.path.split("?")[0]
+            path, _, query = self.path.partition("?")
             if path in ("/", "/index.html"):
                 token = phone.token if self.on_hotspot() and not phone.spent else ""
                 self.send(200, page.replace("{{TOKEN}}", token).encode(), "text/html; charset=utf-8")
@@ -393,7 +395,7 @@ def make_handler(phone: Phone):
                 # so it's here too, as the page has it.
                 if self.on_hotspot() and not phone.spent:
                     answer["token"] = phone.token
-                pairing = phone.give_pairing()
+                pairing = phone.give_pairing() if "pair=1" in query.split("&") else None
                 if pairing:
                     answer["pair"] = pairing
                 self.json(200, answer)

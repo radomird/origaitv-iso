@@ -317,15 +317,20 @@ class Page(unittest.TestCase):
         self.assertEqual(pairing, {"secret": self.phone.pairing, "given": False}, "saved before anyone asks")
         self.assertEqual(len(base64.urlsafe_b64decode(self.phone.pairing + "==")), 16)
         self.assertNotIn("=", self.phone.pairing)
-        # Not for the home network without the token, and not in the page.
-        status, state = self.ask_json("GET", "/api/first", host="127.0.0.2", via="127.0.0.2")
+        # Not for the home network without the token, not in the page, and
+        # not for a phone that doesn't ask, as the page doesn't.
+        status, state = self.ask_json("GET", "/api/first?pair=1", host="127.0.0.2", via="127.0.0.2")
         self.assertEqual(status, 403)
         self.assertNotIn("pair", state)
         _, _, page = self.ask("GET", "/")
         self.assertNotIn(self.phone.pairing, page)
-        self.assertFalse(json.loads((self.run_dir / "pairing.json").read_text())["given"])
-        # The phone on the hotspot gets it, with the token, as an app needs.
         status, state = self.ask_json("GET", "/api/first")
+        self.assertEqual(status, 200)
+        self.assertNotIn("pair", state)
+        self.assertFalse(json.loads((self.run_dir / "pairing.json").read_text())["given"])
+        # The phone on the hotspot that asks gets it, with the token, as an
+        # app needs.
+        status, state = self.ask_json("GET", "/api/first?pair=1")
         self.assertEqual(status, 200)
         self.assertEqual(state["pair"], {"secret": self.phone.pairing, "port": 3001})
         self.assertEqual(state["token"], self.phone.token)
@@ -334,7 +339,7 @@ class Page(unittest.TestCase):
 
     def test_t30_2_with_the_token_on_the_home_network_it_gets_the_secret_but_not_the_token(self):
         status, state = self.ask_json(
-            "GET", "/api/first", host="127.0.0.2", via="127.0.0.2", headers={"X-OrigaiTV-Token": self.phone.token}
+            "GET", "/api/first?pair=1", host="127.0.0.2", via="127.0.0.2", headers={"X-OrigaiTV-Token": self.phone.token}
         )
         self.assertEqual(status, 200)
         self.assertEqual(state["pair"]["secret"], self.phone.pairing)
@@ -342,7 +347,7 @@ class Page(unittest.TestCase):
 
     def test_t30_2_no_secret_once_the_install_has_started(self):
         self.ask_json("POST", "/api/first/install", {"disk": "/dev/sda", "token": self.phone.token})
-        status, state = self.ask_json("GET", "/api/first")
+        status, state = self.ask_json("GET", "/api/first?pair=1")
         self.assertEqual(status, 200)
         self.assertNotIn("pair", state)
         self.assertNotIn("token", state)
