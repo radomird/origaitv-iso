@@ -15,6 +15,15 @@ card that can host a network, the code is the box's address on the home
 network with the token in it, and a phone there only gets in with that: it
 sees no disks without it. The token erases once.
 
+A phone that asks gets a pairing secret too, for the installed TV: 16
+random bytes, given only where the disks are (on the hotspot, or with the
+token), only until the install starts, and only to a phone that asks for it
+(GET /api/first?pair=1, as the app does). The page doesn't ask, since a
+browser on the stick's Wi-Fi can't keep a pairing for the TV's own page. The first screen hands it to the box
+when a phone took it, and once the box is back, that phone pairs with it
+as with the TV's own QR code, so nobody scans a second code. docs/phone-api.md
+in origaitv-os has what an app reads and calls.
+
 It keeps running through the install, so the phone keeps its page until the
 box restarts. The installed box opens the same network with the same
 password (the first screen hands them over), so the phone rejoins it by
@@ -24,12 +33,14 @@ It talks to the first screen through files in /run/origaitv-first-screen:
   phone.json   what the TV shows: the network, or the address (written here)
   screen.json  the disks, which one is picked, and the step (the TV's)
   ask.json     what the phone asked for: pick a disk, or install (written here)
+  pairing.json the pairing secret, and whether a phone was given it (written here)
 
 Usage: origaitv_phone.py
 """
 
 from __future__ import annotations
 
+import base64
 import hmac
 import ipaddress
 import json
@@ -60,6 +71,8 @@ NETWORKD = Path(os.environ.get("ORIGAITV_FIRST_SCREEN_NETWORKD", "/run/systemd/n
 # firmware, a USB dongle or the cable's address can come late.
 LOOK_SECONDS = 3
 MAX_BODY = 4096
+# The installed TV's port for phones, where the secret pairs a phone.
+PHONE_PORT = 3001
 
 
 def run(args: list[str], timeout: int = 20) -> str:
@@ -284,6 +297,26 @@ class Phone:
         self.token = secrets.token_urlsafe(16)
         self.spent = False
         self.lock = threading.Lock()
+        # For the installed TV: base64url with no padding, as the TV reads it.
+        self.pairing = base64.urlsafe_b64encode(secrets.token_bytes(16)).rstrip(b"=").decode()
+        self.given = False
+        self.save_pairing()
+
+    def save_pairing(self) -> None:
+        """What the first screen hands over: the secret, and whether a phone
+        has it. Written before a phone can see it, so the first screen never
+        hands over a secret no phone has, or misses one a phone was given."""
+        write_json(RUN / "pairing.json", {"secret": self.pairing, "given": self.given})
+
+    def give_pairing(self) -> dict | None:
+        """The secret for a phone that sees the disks, until the install starts."""
+        with self.lock:
+            if self.spent or screen().get("step", 1) != 1:
+                return None
+            if not self.given:
+                self.given = True
+                self.save_pairing()
+        return {"secret": self.pairing, "port": PHONE_PORT}
 
     def check(self, token: object) -> bool:
         return isinstance(token, str) and hmac.compare_digest(token.encode(), self.token.encode())
@@ -340,7 +373,7 @@ def make_handler(phone: Phone):
         def do_GET(self) -> None:  # noqa: N802
             if self.captive():
                 return
-            path = self.path.split("?")[0]
+            path, _, query = self.path.partition("?")
             if path in ("/", "/index.html"):
                 token = phone.token if self.on_hotspot() and not phone.spent else ""
                 self.send(200, page.replace("{{TOKEN}}", token).encode(), "text/html; charset=utf-8")
@@ -352,12 +385,20 @@ def make_handler(phone: Phone):
                     self.json(403, {"ok": False, "error": "Scan the code on your TV to start"})
                     return
                 state = screen()
-                self.json(200, {
+                answer = {
                     "step": state.get("step", 1),
                     "disks": state.get("disks", []),
                     "selected": state.get("selected"),
                     "installing": state.get("installing"),
-                })
+                }
+                # An app on the hotspot has no page to read the token from,
+                # so it's here too, as the page has it.
+                if self.on_hotspot() and not phone.spent:
+                    answer["token"] = phone.token
+                pairing = phone.give_pairing() if "pair=1" in query.split("&") else None
+                if pairing:
+                    answer["pair"] = pairing
+                self.json(200, answer)
             else:
                 self.json(404, {"ok": False, "error": "not found"})
 
