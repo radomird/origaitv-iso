@@ -21,7 +21,8 @@
 # Steam's tile shows the icon Steam's package installs, found through its
 # desktop entry the way the desktop's app launcher finds it. Here that's a
 # stand-in desktop entry and a plain magenta square where the package would
-# put them, never Valve's own file.
+# put them, never Valve's own file. Home lists a game only once its package
+# is installed, so the stand-in has pacman's record of a steam package too.
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)/test/integration.d/base-test.sh"
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/tv.sh"
@@ -54,6 +55,8 @@ Icon=steam
 Type=Application
 DESKTOP
 ssh_sudo "install -D -m 644 /tmp/steam.png /usr/share/icons/hicolor/256x256/apps/steam.png && install -D -m 644 /tmp/steam.desktop /usr/share/applications/steam.desktop"
+# And pacman's record of it, which is what home reads for whether it's there.
+ssh_sudo "install -d -m 755 /var/lib/pacman/local/steam-1.0.0-1 && printf '%%NAME%%\nsteam\n\n%%VERSION%%\n1.0.0-1\n\n' >/var/lib/pacman/local/steam-1.0.0-1/desc"
 
 # Steam's app, from origaitv-apps on the same owner as this clone.
 here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)
