@@ -90,12 +90,24 @@ for key in right enter up enter; do
   sleep 1
 done
 # A server's app, such as Plex, then asks where its server is, from what
-# the box finds on the network. There's none in the VM, so "Later", under
-# "Type its address", carries on. A release before the words changed says
-# "set it up later".
-if ocr_finds setup-apps-server "type its address|set it up later" 15; then
+# the box finds on the network: "Pick your Plex". There's none in the VM,
+# so "Later" carries on. It sits to the right of "Enter the address
+# manually", which has the focus, so right then OK. The buttons are too
+# faint for OCR to read reliably, so the headline says the page is up. A
+# release before setup's new screens had "Later" under "Type its address"
+# ("set it up later" before that), so down then OK.
+name=$(jq -r '.for[1].name // "plex"' "$RUN_DIR/setup-apps.json" 2>/dev/null || echo plex)
+keys=""
+if ocr_finds setup-apps-server "pick your ${name,,}|enter the address manually|type its address|set it up later" 30; then
+  if grep -Eqi "type its address|set it up later" "$RUN_DIR/setup-apps-server.txt"; then
+    keys="down enter"
+  else
+    keys="right enter"
+  fi
+fi
+if [[ -n $keys ]]; then
   capture_console "success-setup-apps-server"
-  for key in down enter; do
+  for key in $keys; do
     guest "origaitv input key $key" >>"$RUN_DIR/input.log" 2>&1 || true
     sleep 1
   done
