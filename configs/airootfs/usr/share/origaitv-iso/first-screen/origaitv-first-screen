@@ -342,7 +342,7 @@ def write_private(path: Path, text: str, mode: int = 0o600) -> None:
     os.chmod(path, mode)
 
 
-def write_answers(disk: Disk, hotspot: dict | None = None, pairing: str | None = None) -> None:
+def write_answers(disk: Disk, hotspot: dict | None = None, pairing: str | None = None, wait: bool = True) -> None:
     """Everything the install reads, the way the configurator leaves it, and
     what the installed box gets from this screen: the account's note, the
     hotspot's name and password when a phone is on it, and the secret a
@@ -372,7 +372,10 @@ def write_answers(disk: Disk, hotspot: dict | None = None, pairing: str | None =
     # boot moves it to the daemon's own state (install/tv/state.sh in
     # origaitv-os).
     if pairing:
-        write_private(HANDOVER / "etc/origaitv/phone-pairing.json", json.dumps({"secret": pairing}) + "\n")
+        # wait: whether the TV waits for that phone before it shows a code
+        # (an app's, which pairs by itself), or shows its code at once (the
+        # stick's page's, whose phone opens a link later).
+        write_private(HANDOVER / "etc/origaitv/phone-pairing.json", json.dumps({"secret": pairing, "wait": wait}) + "\n")
 
 
 # --- Drawing -------------------------------------------------------------------
@@ -706,7 +709,7 @@ def first_screen() -> int:
             tell_phone(disks, selected, installing=disk)
             pairing = read_json(RUN / "pairing.json")
         secret = pairing.get("secret") if pairing.get("given") is True and isinstance(pairing.get("secret"), str) else None
-        write_answers(disk, hotspot, secret)
+        write_answers(disk, hotspot, secret, pairing.get("wait") is not False)
         return 0
 
     # The console by its own name (/dev/tty1), not /dev/tty, so it's known

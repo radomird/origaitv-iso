@@ -358,11 +358,14 @@ class Keys(unittest.TestCase):
             [], phone={**HOTSPOT, "joined": True}, asks=[{"install": "/dev/sda"}], pairing={"secret": secret, "given": True}
         )
         self.assertEqual(status, 0)
-        self.assertEqual(json.loads((work / handed).read_text()), {"secret": secret})
+        self.assertEqual(json.loads((work / handed).read_text()), {"secret": secret, "wait": True})
         self.assertEqual((work / handed).stat().st_mode & 0o777, 0o600, "root's only on the box")
         # A phone that had the token on the home network gets it handed too.
         _, _, work = self.drive([b"\r"], pairing={"secret": secret, "given": True})
         self.assertTrue((work / handed).exists())
+        # The stick's page's phone: handed over, and the TV doesn't wait.
+        _, _, work = self.drive([b"\r"], pairing={"secret": secret, "given": True, "wait": False})
+        self.assertEqual(json.loads((work / handed).read_text()), {"secret": secret, "wait": False})
         _, _, work = self.drive([b"\r"])
         self.assertFalse((work / handed).exists())
 

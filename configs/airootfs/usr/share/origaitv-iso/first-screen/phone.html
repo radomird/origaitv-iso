@@ -47,6 +47,11 @@
     font: inherit; font-weight: 800; font-size: 17px; cursor: pointer;
   }
   button.go:disabled { opacity: 0.4; }
+  button.copy {
+    width: 100%; padding: 14px; margin-top: 12px; border: 2px solid var(--blue); background: none; color: var(--fg);
+    font: inherit; font-weight: 800; font-size: 16px; cursor: pointer;
+  }
+  .link { margin-top: 12px; font-size: 13px; word-break: break-all; user-select: all; -webkit-user-select: all; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -65,6 +70,11 @@
 <main id="installing" hidden>
   <h1>Installing OrigaiTV</h1>
   <p>Your TV restarts on its own. Keep this page open.</p>
+  <div id="keep" hidden>
+    <button class="copy" id="copy">Copy your remote's link</button>
+    <p>Open it in your browser once your TV is on your Wi-Fi.</p>
+    <p class="link" id="link"></p>
+  </div>
 </main>
 
 <script>
@@ -83,6 +93,12 @@
   let heard = false;
   let stale = false;
   let failed = "";
+  // The address that pairs this phone with the TV once it's installed: the
+  // TV's own page, by the name it has on any network, with the stick's
+  // secret after the #. The page this is in can't keep a pairing itself (an
+  // iPhone opens it in the sheet for Wi-Fi sign-ins, which forgets
+  // everything), so the phone opens this in its own browser later.
+  let remote = "";
 
   function steps(step) {
     const row = document.querySelector(".steps");
@@ -122,7 +138,66 @@
     if (heard && disks.length === 0) line = "No disk found. Plug one in.";
     if (!TOKEN || stale) line = "Scan the code on your TV to start";
     $("error").textContent = installing ? "" : line;
+    $("keep").hidden = !(installing && remote);
+    $("link").textContent = remote;
   }
+
+  // The secret for the installed TV, asked for just before the install
+  // starts, which is the last moment the stick gives it. Without it, the
+  // TV shows its code after the restart, as it would anyway. It waits three
+  // seconds at most, so a slow answer never holds the install back.
+  const REMOTE_WAIT_MS = 3000;
+  async function askForRemote() {
+    const stop = new AbortController();
+    const timer = setTimeout(() => stop.abort(), REMOTE_WAIT_MS);
+    try {
+      const response = await fetch("/api/first?pair=page", {
+        cache: "no-store",
+        headers: TOKEN ? { "X-OrigaiTV-Token": TOKEN } : {},
+        signal: stop.signal,
+      });
+      const answer = await response.json();
+      if (answer.pair && /^[A-Za-z0-9_-]{22}$/.test(answer.pair.secret)) {
+        remote = `http://origaitv.local:${answer.pair.port || 3001}/#pair=${answer.pair.secret}`;
+      }
+    } catch {
+      remote = "";
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // Copies the link. The sheet for Wi-Fi sign-ins has no clipboard API on a
+  // page without HTTPS, so it selects the text and copies it the old way.
+  $("copy").onclick = async () => {
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(remote);
+      copied = true;
+    } catch {
+      const field = document.createElement("textarea");
+      field.value = remote;
+      field.setAttribute("readonly", "");
+      field.style.position = "fixed";
+      field.style.opacity = "0";
+      document.body.append(field);
+      field.select();
+      field.setSelectionRange(0, remote.length);
+      try {
+        copied = document.execCommand("copy");
+      } catch {
+        copied = false;
+      }
+      field.remove();
+    }
+    $("copy").textContent = copied ? "Copied" : "Copy your remote's link";
+    if (!copied) {
+      const range = document.createRange();
+      range.selectNodeContents($("link"));
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+    }
+  };
 
   async function send(path, disk) {
     // The same line whether the TV said no without a reason or didn't
@@ -153,6 +228,7 @@
     $("go").disabled = true;
     failed = "";
     try {
+      await askForRemote();
       await send("/api/first/install", picked);
       installing = true;
     } catch (error) {

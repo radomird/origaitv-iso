@@ -11,6 +11,7 @@ from __future__ import annotations
 import http.client
 import base64
 import json
+import os
 import time
 import threading
 import fcntl
@@ -28,6 +29,23 @@ sys.path.insert(0, str(HERE))
 
 import origaitv_phone as phone_side  # noqa: E402
 import origaitv_qr  # noqa: E402
+
+
+def run_page(case: str) -> dict:
+    """Runs phone.html's own script in Node, one case of phone-page.mjs."""
+    node = shutil.which("node")
+    if not node:
+        # GitHub's runners have Node, so CI always runs these.
+        if os.environ.get("CI"):
+            raise AssertionError("these tests need node")
+        raise unittest.SkipTest("needs node")
+    result = subprocess.run(
+        [node, str(ROOT / "test/origaitv/unit/phone-page.mjs"), str(HERE / "phone.html"), case],
+        capture_output=True, text=True, timeout=30,
+    )
+    if result.returncode != 0:
+        raise AssertionError(result.stderr)
+    return json.loads(result.stdout)
 
 DISKS = [
     {"path": "/dev/nvme0n1", "name": "nvme0n1", "model": "Samsung SSD 970 EVO", "size": "500 GB"},
@@ -317,11 +335,12 @@ class Page(unittest.TestCase):
 
     def test_t30_2_the_phone_that_sees_the_disks_gets_a_secret_to_pair_with_the_installed_tv(self):
         pairing = json.loads((self.run_dir / "pairing.json").read_text())
-        self.assertEqual(pairing, {"secret": self.phone.pairing, "given": False}, "saved before anyone asks")
+        self.assertEqual(pairing, {"secret": self.phone.pairing, "given": False, "wait": False}, "saved before anyone asks")
         self.assertEqual(len(base64.urlsafe_b64decode(self.phone.pairing + "==")), 16)
         self.assertNotIn("=", self.phone.pairing)
         # Not for the home network without the token, not in the page, and
-        # not for a phone that doesn't ask, as the page doesn't.
+        # not for a phone that doesn't ask. The page asks only as its phone
+        # taps Erase and install (pair=page).
         status, state = self.ask_json("GET", "/api/first?pair=1", host="127.0.0.2", via="127.0.0.2")
         self.assertEqual(status, 403)
         self.assertNotIn("pair", state)
@@ -337,7 +356,7 @@ class Page(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(state["pair"], {"secret": self.phone.pairing, "port": 3001})
         self.assertEqual(state["token"], self.phone.token)
-        self.assertEqual(json.loads((self.run_dir / "pairing.json").read_text()), {"secret": self.phone.pairing, "given": True})
+        self.assertEqual(json.loads((self.run_dir / "pairing.json").read_text()), {"secret": self.phone.pairing, "given": True, "wait": True})
         self.assertEqual((self.run_dir / "pairing.json").stat().st_mode & 0o777, 0o600)
 
     def test_t30_2_with_the_token_on_the_home_network_it_gets_the_secret_but_not_the_token(self):
@@ -365,6 +384,41 @@ class Page(unittest.TestCase):
         asking.join(5)
         self.assertEqual(answers, [None])
         self.assertFalse(json.loads((self.run_dir / "pairing.json").read_text())["given"], "so the box isn't told to wait for it")
+
+    def test_the_sticks_page_gets_the_secret_without_the_tv_waiting_for_it(self):
+        # The page asks as its phone taps Erase and install, and hands its
+        # phone a link to open later. The TV shows its code meanwhile.
+        status, state = self.ask_json("GET", "/api/first?pair=page")
+        self.assertEqual(status, 200)
+        self.assertEqual(state["pair"]["secret"], self.phone.pairing)
+        self.assertEqual(json.loads((self.run_dir / "pairing.json").read_text()), {"secret": self.phone.pairing, "given": True, "wait": False})
+        # An app asking too makes the TV wait, as it pairs by itself.
+        self.ask_json("GET", "/api/first?pair=1")
+        self.assertTrue(json.loads((self.run_dir / "pairing.json").read_text())["wait"])
+        # And the page asking after doesn't take that back.
+        self.ask_json("GET", "/api/first?pair=page")
+        self.assertTrue(json.loads((self.run_dir / "pairing.json").read_text())["wait"])
+
+    def test_the_page_asks_for_its_remotes_link_before_it_installs_and_offers_it_after(self):
+        page = run_page("pair-answered")
+        self.assertEqual(page["asked"][-2:], ["/api/first?pair=page", "/api/first/install"])
+        self.assertFalse(page["installingHidden"])
+        self.assertFalse(page["keepHidden"], "the link is offered while the TV installs")
+        self.assertEqual(page["link"], f"http://origaitv.local:3001/#pair={'A' * 22}")
+        self.assertEqual((page["copy"], page["copied"]), ("Copied", page["link"]))
+
+    def test_the_page_offers_no_link_when_the_stick_gives_no_secret(self):
+        page = run_page("no-pair")
+        self.assertIn("/api/first/install", page["asked"])
+        self.assertFalse(page["installingHidden"])
+        self.assertTrue(page["keepHidden"])
+        self.assertEqual(page["link"], "")
+
+    def test_a_stick_that_never_answers_doesnt_hold_the_install_back(self):
+        page = run_page("pair-never-answers")
+        self.assertFalse(page["installBeforeLimit"], "it waits a little")
+        self.assertEqual(page["asked"][-1], "/api/first/install", "then installs without the link")
+        self.assertTrue(page["keepHidden"])
 
     def test_t30_2_no_secret_once_the_install_has_started(self):
         self.ask_json("POST", "/api/first/install", {"disk": "/dev/sda", "token": self.phone.token})
