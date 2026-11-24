@@ -122,11 +122,9 @@ got_app() {
 }
 check "Steam's app comes from $owner/origaitv-apps at $ref" got_app
 commit=$(python3 -c 'import sys, tarfile; print(tarfile.open(sys.argv[1]).pax_headers.get("comment", ""))' "$RUN_DIR/origaitv-apps.tar.gz" 2>/dev/null || true)
-ssh_sudo "install -d -m 755 /var/lib/origaitv/apps/origaitv.steam"
-for file in manifest.json app.ts; do
-  ssh_guest "cat >/tmp/$file" <"$apps/apps/steam/$file"
-  ssh_sudo "install -m 644 /tmp/$file /var/lib/origaitv/apps/origaitv.steam/$file"
-done
+# Its folder without its fixtures, as an install from the index copies it.
+tar -C "$apps/apps/steam" --exclude=./fixtures -cf - . | ssh_guest "rm -rf /tmp/steam-app && mkdir /tmp/steam-app && tar -C /tmp/steam-app -xf -"
+ssh_sudo "install -d -m 755 /var/lib/origaitv/apps/origaitv.steam && cp -r /tmp/steam-app/. /var/lib/origaitv/apps/origaitv.steam/ && chmod -R u=rwX,go=rX /var/lib/origaitv/apps/origaitv.steam"
 ssh_sudo "record=/var/lib/origaitv/apps/installed.json; [[ -f \$record ]] || echo '{}' >\$record; jq --arg commit '$commit' --arg repo 'https://github.com/$owner/origaitv-apps' '. + {\"origaitv.steam\": {id: \"origaitv.steam\", name: \"Steam\", version: \"1.0.0\", tier: \"official\", repo: \$repo, commit: \$commit, path: \"apps/steam\", installedAt: (now | todate)}}' \$record >\$record.new && chmod 644 \$record.new && mv \$record.new \$record"
 ssh_guest "cat >/tmp/steam" <<'STEAM'
 #!/bin/bash
