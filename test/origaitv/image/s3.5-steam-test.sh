@@ -18,10 +18,12 @@
 # rest is the box's own. Steam's own sign-in screen full screen in its real
 # gamescope is S1.5, on the NUC.
 #
-# Steam's tile shows the icon Steam's package installs, found through its
-# desktop entry the way the desktop's app launcher finds it. Here that's a
-# stand-in desktop entry and a plain magenta square where the package would
-# put them, never Valve's own file. Home lists a game only once its package
+# Steam's tile shows the icon Steam's app brings, its own icon.svg, ahead of
+# the one Steam's package installs in the icon theme. So the package's icon is
+# a plain green square, where the package would put it, and the app's is
+# swapped for a plain magenta one, never Valve's own file: the tile has to
+# show the magenta. Finding a package's icon through its desktop entry is
+# checked in origaitv-os's own tests. Home lists a game only once its package
 # is installed, so the stand-in has pacman's record of a steam package too.
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)/test/integration.d/base-test.sh"
@@ -36,7 +38,7 @@ wait_tv 240 >/dev/null || { capture_console "failure-s3.5-no-tv"; check "the TV 
 guest "origaitv setup skip" >"$RUN_DIR/setup.log" 2>&1 || true
 wait_home 60 >/dev/null || true
 
-# How much of the screen is the stand-in icon's magenta.
+# How much of the screen is the app's stand-in icon's magenta.
 magenta() {
   magick "$1" -fuzz 6% -fill black +opaque "#ff00ff" -fill white -opaque "#ff00ff" -format '%[fx:int(mean*w*h)]' info: 2>/dev/null || echo 0
 }
@@ -44,9 +46,10 @@ capture_console "success-S3.5-before"
 before=$(magenta "$RUN_DIR/success-S3.5-before.png")
 
 # What Steam's package installs for its icon: its desktop entry and its icon
-# in the hicolor theme, as stand-ins, on this throwaway box only.
-magick -size 256x256 xc:"#ff00ff" "$RUN_DIR/steam-icon.png"
-ssh_guest "cat >/tmp/steam.png" <"$RUN_DIR/steam-icon.png"
+# in the hicolor theme, as stand-ins, on this throwaway box only. Green, so
+# it's never taken for the app's own.
+magick -size 256x256 xc:"#00ff00" "$RUN_DIR/steam-package-icon.png"
+ssh_guest "cat >/tmp/steam.png" <"$RUN_DIR/steam-package-icon.png"
 ssh_guest "cat >/tmp/steam.desktop" <<'DESKTOP'
 [Desktop Entry]
 Name=Steam stand-in
@@ -73,21 +76,21 @@ check "Steam's app comes from $owner/origaitv-apps at $ref" got_app
 commit=$(python3 -c 'import sys, tarfile; print(tarfile.open(sys.argv[1]).pax_headers.get("comment", ""))' "$RUN_DIR/origaitv-apps.tar.gz" 2>/dev/null || true)
 
 # Where an install from the index puts it: its folder without its fixtures,
-# and its record as an official app.
-ssh_sudo "install -d -m 755 /var/lib/origaitv/apps/origaitv.steam"
-for file in manifest.json app.ts; do
-  ssh_guest "cat >/tmp/$file" <"$apps/apps/steam/$file"
-  ssh_sudo "install -m 644 /tmp/$file /var/lib/origaitv/apps/origaitv.steam/$file"
-done
+# and its record as an official app. Its icon.svg is then swapped for a plain
+# magenta square, so the screen can be searched for it.
+tar -C "$apps/apps/steam" --exclude=./fixtures -cf - . | ssh_guest "rm -rf /tmp/steam-app && mkdir /tmp/steam-app && tar -C /tmp/steam-app -xf -"
+printf '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><rect width="256" height="256" fill="#ff00ff"/></svg>\n' >"$RUN_DIR/steam-icon.svg"
+ssh_guest "cat >/tmp/steam-app/icon.svg" <"$RUN_DIR/steam-icon.svg"
+ssh_sudo "install -d -m 755 /var/lib/origaitv/apps/origaitv.steam && cp -r /tmp/steam-app/. /var/lib/origaitv/apps/origaitv.steam/ && chmod -R u=rwX,go=rX /var/lib/origaitv/apps/origaitv.steam"
 ssh_sudo "record=/var/lib/origaitv/apps/installed.json; [[ -f \$record ]] || echo '{}' >\$record; jq --arg commit '$commit' --arg repo 'https://github.com/$owner/origaitv-apps' '. + {\"origaitv.steam\": {id: \"origaitv.steam\", name: \"Steam\", version: \"1.0.0\", tier: \"official\", repo: \$repo, commit: \$commit, path: \"apps/steam\", installedAt: (now | todate)}}' \$record >\$record.new && chmod 644 \$record.new && mv \$record.new \$record"
 check "Steam's app is on home's list of apps" \
   ssh_guest "curl -fsS --max-time 5 http://127.0.0.1:3000/api/home | jq -e '.apps[] | select(.id == \"origaitv.steam\")' >/dev/null"
-check "S3.5 Steam's tile has the icon Steam's package gives it" \
+check "S3.5 Steam's tile has an icon" \
   ssh_guest "curl -fsS --max-time 5 http://127.0.0.1:3000/api/home | jq -e '.apps[] | select(.id == \"origaitv.steam\") | .icon == \"/api/apps/origaitv.steam/icon\"' >/dev/null"
 served_icon() {
-  [[ $(ssh_guest "curl -fsS --max-time 5 http://127.0.0.1:3000/api/apps/origaitv.steam/icon | sha256sum" 2>/dev/null | cut -d' ' -f1) == "$(sha256sum <"$RUN_DIR/steam-icon.png" | cut -d' ' -f1)" ]]
+  [[ $(ssh_guest "curl -fsS --max-time 5 http://127.0.0.1:3000/api/apps/origaitv.steam/icon | sha256sum" 2>/dev/null | cut -d' ' -f1) == "$(sha256sum <"$RUN_DIR/steam-icon.svg" | cut -d' ' -f1)" ]]
 }
-check "S3.5 the daemon serves that icon as the package put it" served_icon
+check "S3.5 the daemon serves the icon Steam's app brings, not its package's" served_icon
 # And home draws it on Steam's tile: a block of the stand-in's magenta that
 # wasn't on the screen before. A logo is 72 px square.
 after=0
@@ -103,7 +106,7 @@ tile_icon() {
 }
 shown=no
 tile_icon && shown=yes
-check "S3.5 home shows the icon on Steam's tile" test "$shown" = yes
+check "S3.5 home shows the app's icon on Steam's tile" test "$shown" = yes
 # When it doesn't, what home had and showed, in the run's own log: the
 # magenta, home's tiles, what was in front, and the screen in colour, small.
 if [[ $shown != yes ]]; then
