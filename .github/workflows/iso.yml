@@ -12,6 +12,15 @@ name: ISO
 # merge to origaitv doesn't rebuild it: the nightly run in origaitv-os builds the
 # edge ISO every night, from this branch.
 #
+# A pull request's run builds the TV's packages itself, from origaitv-os's
+# origaitv, or from origaitv-os's branch of the same name when there is one.
+# Edge's are only rebuilt each night, so for most of a day after a change
+# lands in both repos, an ISO with edge's packages would test the new stick
+# against yesterday's TV. The build is origaitv-pkgs' own (bin/build and
+# bin/sign), the one origaitv-os's image workflow runs, signed with a
+# throwaway key made in the run that only this run's box trusts. So no key
+# of OrigaiTV's is needed here, and none leaves the run.
+#
 # A release tag is origaitv-v1.0.0, a candidate's origaitv-v1.0.0-rc1, and a 0.x
 # release was v0.2.0 (bin/origaitv-iso-tag). A release's ISO carries stable's
 # packages, and a candidate's carries edge's. Either way the run first
@@ -44,9 +53,9 @@ on:
   workflow_dispatch:
     inputs:
       channel:
-        description: "OrigaiTV package channel the ISO carries"
+        description: "OrigaiTV package channel the ISO carries, or build to build them from origaitv-os's origaitv"
         type: choice
-        options: [edge, stable]
+        options: [edge, stable, build]
         default: edge
       keep-iso:
         description: "Keep the ISO as an artifact"
@@ -183,7 +192,8 @@ jobs:
 
       # A pushed tag is the only push that starts this workflow. It has to
       # be one of OrigaiTV's release tags, and it says which packages the ISO
-      # carries: stable's for a release, edge's for a candidate. Every other
+      # carries: stable's for a release, edge's for a candidate. A pull
+      # request's run builds them (see the top of this file). Every other
       # run carries the channel it was asked for, edge unless told. Only an
       # ISO that went through every check is kept: a release tag's always,
       # another run's when it asks.
@@ -208,6 +218,9 @@ jobs:
             # The ISO says which release it is, and puts that on the box it
             # installs, for Settings, System (origaitv_handover.py).
             echo "$version" >configs/airootfs/usr/share/origaitv-iso/release
+          elif [[ $GITHUB_EVENT_NAME == "pull_request" ]]; then
+            channel=build
+            keep=false
           else
             channel=${ASKED:-edge}
             keep=${KEEP:-false}
@@ -234,11 +247,86 @@ jobs:
           (( $(avail) >= 40 )) || { echo "::error::only $(avail) GB free, the build and install test need about 40 GB"; exit 1; }
 
       - name: Fetch OrigaiTV's signed packages
+        if: env.CHANNEL != 'build'
         env:
           ORIGAITV_OWNER: ${{ github.repository_owner }}
         run: |
           set -o pipefail
           bin/origaitv-iso-packages "$CHANNEL" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # The TV built from now, not from last night. origaitv-os's branch of
+      # the same name when it has one, so a change made in both repos is
+      # built together. Otherwise its origaitv.
+      - name: The origaitv-os commit the TV is built from
+        if: env.CHANNEL == 'build'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          ref=origaitv
+          if [[ -n $HEAD_REF ]] && gh api "repos/$OWNER/origaitv-os/branches/$HEAD_REF" --silent 2>/dev/null; then
+            ref=$HEAD_REF
+          fi
+          sha=$(gh api "repos/$OWNER/origaitv-os/commits/$ref" --jq .sha)
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Couldn't find origaitv-os's $ref. Rerun this job."; exit 1; }
+          echo "OS_SHA=$sha" >>"$GITHUB_ENV"
+          echo "The TV is built from origaitv-os's $ref, [\`${sha::7}\`](https://github.com/$OWNER/origaitv-os/commit/$sha)." | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # The PKGBUILDs and the scripts that build and sign with them.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.CHANNEL == 'build'
+        with:
+          repository: ${{ github.repository_owner }}/origaitv-pkgs
+          ref: main
+          path: .origaitv-pkgs
+          persist-credentials: false
+
+      # A key made here, good for a day, that only this run's box trusts.
+      # The public half goes where the build's container and the checks'
+      # read it. The key itself stays in the runner's own folder.
+      - name: A throwaway key for the packages
+        if: env.CHANNEL == 'build'
+        run: |
+          .origaitv-pkgs/bin/test-key "$RUNNER_TEMP/test-key"
+          mkdir -p test-runs/test-key
+          cp "$RUNNER_TEMP/test-key/public.asc" test-runs/test-key/public.asc
+          echo "ORIGAITV_TEST_PACKAGE_KEY=/w/test-runs/test-key/public.asc" >>"$GITHUB_ENV"
+          echo "The packages are signed with a throwaway key, $(cat "$RUNNER_TEMP/test-key/fingerprint"), which only this run's box trusts." | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Built with no key around, as origaitv-os's image workflow builds
+      # them. The keyring built with them trusts the throwaway key too.
+      - name: Build OrigaiTV's packages
+        if: env.CHANNEL == 'build'
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          start=$(date +%s)
+          repo=$RUNNER_TEMP/repo
+          mkdir -p "$repo"
+          docker run --rm -v "$PWD/.origaitv-pkgs:/src:ro" -v "$repo:/repo" \
+            -v "$PWD/test-runs/test-key:/test-key:ro" -e ORIGAITV_TEST_KEY=/test-key/public.asc \
+            -e ORIGAITV_CHANNEL=edge -e ORIGAITV_REF="commit=$OS_SHA" \
+            -e ORIGAITV_SOURCE="https://github.com/$OWNER/origaitv-os.git" \
+            -e ORIGAITV_REPO_URL="https://github.com/$OWNER/origaitv-pkgs/releases/download" \
+            ghcr.io/archlinux/archlinux:latest /src/bin/build /repo
+          # The container wrote them as its own users.
+          sudo chown -R "$(id -u):$(id -g)" "$repo"
+          echo "PACKAGES_SECONDS=$(($(date +%s) - start))" >>"$GITHUB_ENV"
+
+      - name: Sign them with the run's throwaway key
+        if: env.CHANNEL == 'build'
+        env:
+          ORIGAITV_TEST_KEY: ${{ runner.temp }}/test-key/public.asc
+        run: |
+          dest=configs/airootfs/usr/share/origaitv-iso/packages
+          AGENTV_SIGNING_KEY=$(cat "$RUNNER_TEMP/test-key/secret.asc") .origaitv-pkgs/bin/sign "$RUNNER_TEMP/repo"
+          mkdir -p "$dest"
+          cp "$RUNNER_TEMP"/repo/origaitv-*.pkg.tar.zst "$dest/"
+          ls -l "$dest"
+          built=$(basename "$(ls "$dest"/origaitv-[0-9]*.pkg.tar.zst)" | sed -E 's/^origaitv-(.*)-any\.pkg\.tar\.zst$/\1/')
+          echo "BUILT_VERSION=$built" >>"$GITHUB_ENV"
+          echo "The ISO carries origaitv $built, built in this run in $PACKAGES_SECONDS s." | tee -a "$GITHUB_STEP_SUMMARY"
 
       # Before the long build: a release tag's ISO is named after the tag,
       # so the package on it has to be the one that name promises.
@@ -280,7 +368,11 @@ jobs:
           {
             echo "## ISO"
             echo
-            echo "OrigaiTV packages: \`$CHANNEL\`. Build: $(cat test-runs/build-seconds 2>/dev/null || echo ?) s."
+            if [[ $CHANNEL == "build" ]]; then
+              echo "OrigaiTV packages: built in this run, origaitv \`${BUILT_VERSION:-?}\` from origaitv-os \`${OS_SHA::7}\`, in ${PACKAGES_SECONDS:-?} s. Build: $(cat test-runs/build-seconds 2>/dev/null || echo ?) s."
+            else
+              echo "OrigaiTV packages: \`$CHANNEL\`. Build: $(cat test-runs/build-seconds 2>/dev/null || echo ?) s."
+            fi
             if [[ -n $base && -f $base/omarchy-install-timing.json ]]; then
               jq -r '"Install: \((.finished_at - .started_at) | round) s."' "$base/omarchy-install-timing.json"
             fi

@@ -257,10 +257,16 @@ class TheIsoWorkflow(unittest.TestCase):
         result, env = self.decide("workflow_dispatch", "origaitv-v1.0.0", channel="stable", keep="false")
         self.assertEqual(env, {"RELEASE_TAG": "", "CHANNEL": "stable", "KEEP_ISO": "false"})
 
-    def test_a_pull_request_carries_edge_and_keeps_nothing(self):
+    def test_a_pull_request_builds_its_packages_and_keeps_nothing(self):
+        # Edge's are a night old, so a pull request builds the TV from now.
         result, env = self.decide("pull_request", "12/merge")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(env, {"RELEASE_TAG": "", "CHANNEL": "edge", "KEEP_ISO": "false"})
+        self.assertEqual(env, {"RELEASE_TAG": "", "CHANNEL": "build", "KEEP_ISO": "false"})
+
+    def test_a_run_by_hand_can_build_its_packages(self):
+        result, env = self.decide("workflow_dispatch", channel="build")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(env, {"RELEASE_TAG": "", "CHANNEL": "build", "KEEP_ISO": "false"})
 
     def test_a_run_of_only_some_checks_keeps_nothing(self):
         _, env = self.decide("workflow_dispatch", channel="edge", keep="true", checks="s0.1-iso")
