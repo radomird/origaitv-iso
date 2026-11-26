@@ -284,6 +284,15 @@ patch "$orchestrator/main.py" "the install's phases" \
 patch "$orchestrator/main.py" "the SSH access phase" \
   's/^(        \("Configuring SSH access", +configure_ssh_access\),\n)/$1        ("Handing over to OrigaiTV",     origaitv_handover),\n/m'
 
+# An ISO built from a release tag says which release it is, and the install
+# writes that onto the box (origaitv_handover.py). This folder is gone from
+# the live system as soon as this script ends (bin/origaitv-iso-brand removes
+# it), so the release moves to where the installer reads it.
+if [[ -s $here/release ]]; then
+  install -D -m 644 "$here/release" /usr/local/share/origaitv/release
+  echo "origaitv-iso: this ISO is OrigaiTV $(head -n 1 "$here/release"), and tells the box it installs"
+fi
+
 # While it installs, the dashboard says which step of setup it is, under the
 # percentage, where the medium's check shows while that runs.
 # shellcheck disable=SC2016 # the single quotes hold perl

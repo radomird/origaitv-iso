@@ -59,7 +59,10 @@ if [[ ${#carried[@]} == 1 && -f ${carried[0]} ]]; then
   package=${package%-any.pkg.tar.zst}
   installed=$(ssh_guest "pacman -Q origaitv" | cut -d' ' -f2)
   check "the box has the origaitv the ISO was built with ($package, and it has ${installed:-none})" test "$installed" = "$package"
-  said=$(ssh_guest "origaitv version" | head -n 1 | cut -d' ' -f2)
+  # sed reads every line. head stops at the first, and on a box with a
+  # release the next line is on its way by then, so the command died of a
+  # closed pipe and took this whole check with it, saying nothing.
+  said=$(ssh_guest "origaitv version" | sed -n '1p' | cut -d' ' -f2)
   check "and origaitv version says so (${package%-*}, and it says ${said:-nothing})" test "$said" = "${package%-*}"
 else
   log "The packages the ISO was built with aren't here, so the box's origaitv isn't compared with them"
@@ -67,7 +70,9 @@ fi
 # A release tag's ISO says which release it is, and the box it installs
 # keeps that, with the build of OrigaiTV it installed on the line under it,
 # for Settings, System (T30.3): the ISO workflow writes the release before
-# the build. Any other ISO writes none, and the box has none.
+# the build. A pull request's ISO says it's a stand-in release, so this side
+# is checked before a tag is. Any other ISO writes none, and the box has
+# none.
 release_file=$ROOT/configs/airootfs/usr/share/origaitv-iso/release
 if [[ -s $release_file ]]; then
   release=$(sed -n '1{s/[[:space:]]//g;p;}' "$release_file")
