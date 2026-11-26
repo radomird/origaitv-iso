@@ -46,7 +46,11 @@ ONE_SHOT = ("LoaderConfigTimeoutOneShot", "LoaderEntryOneShot")
 # runs that release while it runs that build, and once an update on edge
 # moves it on, that it was installed from it. An ISO built from a branch has
 # no release.
-RELEASE = Path("/usr/share/origaitv-iso/release")
+#
+# The build removes /usr/share/origaitv-iso from the live system once
+# customize.sh has run, so customize.sh puts the release here first, beside
+# the logo. Read from the folder it started in, it was never there to read.
+RELEASE = Path("/usr/local/share/origaitv/release")
 RELEASE_ON_BOX = Path("etc/origaitv/release")
 # The installed package's settings, where its version is.
 SETTINGS_ON_BOX = Path("usr/share/origaitv/settings")

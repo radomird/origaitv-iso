@@ -471,6 +471,20 @@ class Handover(unittest.TestCase):
             self.assertEqual(handover.drop_one_shot_requests(Path(efivars)), [])
             self.assertEqual(handover.drop_one_shot_requests(Path(efivars, "missing")), [])
 
+    def test_the_release_is_read_from_where_the_build_leaves_it(self):
+        # The build runs customize.sh in the live system and then removes
+        # the folder it came in. The release was read from that folder
+        # once, so no ISO built from a tag ever told its box which release
+        # it was.
+        brand = (HERE.parents[5] / "bin/origaitv-iso-brand").read_text()
+        removed = re.search(r"\\nrm -rf ((?:\\/[\w.-]+)+)", brand)
+        self.assertIsNotNone(removed, "bin/origaitv-iso-brand no longer removes a folder after customize.sh")
+        removed = Path(removed.group(1).replace("\\/", "/"))
+        self.assertEqual(removed, Path("/usr/share/origaitv-iso"))
+        self.assertNotIn(removed, handover.RELEASE.parents, "the release has to outlive the build's clean-up")
+        customize = (HERE.parent / "customize.sh").read_text()
+        self.assertIn(f'install -D -m 644 "$here/release" {handover.RELEASE}\n', customize)
+
     def test_the_install_drops_them_only_for_the_first_screen(self):
         # The phase as the installer runs it: its log line comes from the
         # orchestrator's ui module, stood in for here.
