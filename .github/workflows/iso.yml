@@ -69,6 +69,10 @@ on:
         description: "Only these image checks, by name, like s5.6-setup update-tv (empty: every check)"
         type: string
         default: ""
+      release:
+        description: "A stand-in release the ISO says it is, like 0.0.0-rc1, to check what a release tag's ISO does (empty: none). Its ISO is never kept"
+        type: string
+        default: ""
   workflow_call:
     inputs:
       channel:
@@ -197,13 +201,24 @@ jobs:
       # run carries the channel it was asked for, edge unless told. Only an
       # ISO that went through every check is kept: a release tag's always,
       # another run's when it asks.
+      #
+      # Only a release tag's ISO says which release it is, so for a long
+      # time the first run to check that was a candidate's own, too late to
+      # fix it. So a pull request's ISO says it's a stand-in release,
+      # 0.0.0-rc1, which no tag will ever be, and a run by hand can ask for
+      # one. That ISO is checked the way a candidate's is and then thrown
+      # away: it's never kept, so there's nothing of it to publish. The
+      # night's run has no release, which checks the other side.
       - name: Which packages, and whether the ISO is kept
         env:
           ASKED: ${{ inputs.channel }}
           KEEP: ${{ inputs.keep-iso }}
           ONLY: ${{ inputs.checks }}
+          STAND_IN: ${{ github.event_name == 'workflow_dispatch' && inputs.release || '' }}
         run: |
           tag=""
+          release=""
+          stand_in=""
           if [[ $GITHUB_EVENT_NAME == "push" ]]; then
             tag=$GITHUB_REF_NAME
             read -r kind version < <(bin/origaitv-iso-tag "$tag") || {
@@ -215,16 +230,31 @@ jobs:
             keep=true
             echo "ISO_VERSION=$version" >>"$GITHUB_ENV"
             echo "$tag is OrigaiTV $version, for the $kind channel. Its ISO carries the $channel packages." | tee -a "$GITHUB_STEP_SUMMARY"
-            # The ISO says which release it is, and puts that on the box it
-            # installs, for Settings, System (origaitv_handover.py).
-            echo "$version" >configs/airootfs/usr/share/origaitv-iso/release
+            release=$version
           elif [[ $GITHUB_EVENT_NAME == "pull_request" ]]; then
             channel=build
             keep=false
+            stand_in=0.0.0-rc1
           else
             channel=${ASKED:-edge}
             keep=${KEEP:-false}
+            stand_in=$STAND_IN
           fi
+          if [[ -n $stand_in ]]; then
+            # It has to read as a release, or the TV ignores it.
+            bin/origaitv-iso-tag "origaitv-v$stand_in" >/dev/null || {
+              echo "::error::$stand_in isn't a version a release can have, like 0.0.0-rc1"
+              exit 1
+            }
+            release=$stand_in
+            keep=false
+            echo "This ISO says it's OrigaiTV $stand_in, a stand-in release, so the checks see what a release tag's ISO does. It isn't kept." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          # The ISO says which release it is, and puts that on the box it
+          # installs, for Settings, System (customize.sh and
+          # origaitv_handover.py).
+          rm -f configs/airootfs/usr/share/origaitv-iso/release
+          [[ -z $release ]] || echo "$release" >configs/airootfs/usr/share/origaitv-iso/release
           [[ -z $ONLY ]] || keep=false
           {
             echo "RELEASE_TAG=$tag"

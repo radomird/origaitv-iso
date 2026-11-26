@@ -67,7 +67,9 @@ fi
 # A release tag's ISO says which release it is, and the box it installs
 # keeps that, with the build of OrigaiTV it installed on the line under it,
 # for Settings, System (T30.3): the ISO workflow writes the release before
-# the build. Any other ISO writes none, and the box has none.
+# the build. A pull request's ISO says it's a stand-in release, so this side
+# is checked before a tag is. Any other ISO writes none, and the box has
+# none.
 release_file=$ROOT/configs/airootfs/usr/share/origaitv-iso/release
 if [[ -s $release_file ]]; then
   release=$(sed -n '1{s/[[:space:]]//g;p;}' "$release_file")
