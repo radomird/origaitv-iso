@@ -67,7 +67,10 @@ check "with the GPU's line (OCR)" ocr_finds success-T3.2-games "not for games" 1
 # The TV runs at its full resolution, so the 4K test runs at QEMU's 4K mode
 # on the step itself, where virtio's GPU can't keep it smooth.
 check "the 4K test ran at the TV's 4K mode, and the box didn't keep it smooth" until_json /api/box/smooth '.result.width == 3840 and .passed == false' 30
-check "and the computer's line says it's better at 1080p (OCR)" ocr_finds success-T3.2-smooth "better at 1080p|smoother at 1080p" 15
+# OCR can read this font's "better" as "bhetter", as it has read "be" as
+# "bhe" on the first screen. It did on every run of 2026-11-27, with the
+# TV showing "better at 1080p" as it should, so that reading counts too.
+check "and the computer's line says it's better at 1080p (OCR)" ocr_finds success-T3.2-smooth "bh?etter at 1080p|smoother at 1080p" 15
 capture_console "success-T3.2-box"
 
 # One press of OK.
