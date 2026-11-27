@@ -45,7 +45,7 @@ The checksum proves that your ISO is the one it was made for. `sha256sum -c` mus
 
 1.0.0-rc2's files have names that don't start with `origaitv-`. For those, use the names your files have.
 
-There's one more ISO, for trying what's next: last night's edge build, like `origaitv-0.2.0.r831.g59f9f8164-x86_64.iso`. Edge's version is the one `origaitv version` prints on a box you install from it.
+There's one more ISO, for trying what's next: last night's edge build, like `origaitv-1.0.0rc6.r12.g59f9f8164-x86_64.iso`. Edge's version is the one `origaitv version` prints on a box you install from it. It counts from the last release or candidate: that one is twelve commits after 1.0.0-rc6.
 
 A box installed from a release candidate or from edge gets every new build as it's made, not only the releases. To move it to the releases, run `origaitv channel stable` on it, and then `origaitv update`. The stable ISO, like `origaitv-1.0.0-x86_64.iso`, is coming soon, with 1.0.
 

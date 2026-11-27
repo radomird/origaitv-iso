@@ -115,6 +115,24 @@ if [[ -s $release_file ]]; then
 else
   check "an ISO with no release puts none on the box" ssh_guest "test ! -e /etc/origaitv/release"
 fi
+# Edge counts from the last release or candidate, and a box only ever takes
+# a newer package. So the box's own pacman is asked about every pair of the
+# versions edge moves through (edge-order.txt): each has to be older than
+# all that come after it. The pairs are counted on the box, in one go.
+mapfile -t ordered < <(grep -v -e '^#' -e '^[[:space:]]*$' "$ROOT/test/origaitv/edge-order.txt")
+wrong=$(ssh_guest "bash -s -- ${ordered[*]}" <<'ORDER' 2>/dev/null || echo "couldn't ask"
+versions=("$@")
+for (( i = 0; i < ${#versions[@]}; i++ )); do
+  for (( j = i + 1; j < ${#versions[@]}; j++ )); do
+    [[ $(vercmp "${versions[i]}" "${versions[j]}") == -1 && $(vercmp "${versions[j]}" "${versions[i]}") == 1 ]] ||
+      echo "${versions[i]} isn't older than ${versions[j]}"
+  done
+done
+ORDER
+)
+wrong=${wrong//$'\n'/; }
+check "the box's pacman puts edge's versions in order, all ${#ordered[@]} of them (${wrong:-every pair is right})" \
+  test "${#ordered[@]}" -ge 9 -a -z "$wrong"
 # OrigaiTV's repository takes its package list only with the signature. A box
 # straight from the ISO has no list yet, and one that has refreshed has both.
 # A list alone would make pacman refuse every install that doesn't refresh.

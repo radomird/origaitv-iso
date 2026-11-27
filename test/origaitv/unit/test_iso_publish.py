@@ -293,7 +293,7 @@ class IsoPublish(unittest.TestCase):
             "stable": ["1.0.0"],
             "rc": ["1.0.0-rc1"],
             # What "origaitv version" prints on an edge box, or the day and commit.
-            "edge": ["0.2.0.r422.g155320d30", "edge-2026.11.10-abc1234"],
+            "edge": ["0.2.0.r422.g155320d30", "1.0.0rc6.r12.g155320d30", "1.0.0rc10.r0.g155320d30", "1.0.0.r3.g155320d30", "edge-2026.11.10-abc1234"],
         }
         for channel in versions:
             for owner, theirs in versions.items():
@@ -307,6 +307,13 @@ class IsoPublish(unittest.TestCase):
                     else:
                         self.assertNotEqual(result.returncode, 0, f"{version} as {channel}")
                         self.assertFalse(names.exists())
+        # A candidate's name without its hyphen, or with a number that
+        # starts with a zero, is nobody's.
+        for version in ("1.0.0rc6", "1.0.0rc06.r1.g155320d30", "1.0.0rc0.r1.g155320d30", "1.0.0-rc6.r1.g155320d30"):
+            iso = self.built(f"origaitv-{version}-x86_64")
+            for channel in versions:
+                result = self.run_publish("names", channel, f"{iso}.sha256", str(self.work / f"names-{channel}-{version}"))
+                self.assertNotEqual(result.returncode, 0, f"{version} as {channel}")
 
     def test_names_refuses_another_channel_or_another_file(self):
         iso = self.built("origaitv-1.0.0-x86_64")
@@ -681,6 +688,14 @@ class IsoPublish(unittest.TestCase):
             ("rc", "1.1.0-rc1", "1.0.0-rc3"),
             ("edge", "0.2.0.r540.gabcdef012", "0.2.0.r532.g38b376c64"),
             ("edge", "1.0.0.r0.gabcdef012", "0.2.0.r900.g38b376c64"),
+            # Edge counts from the last candidate: a candidate's builds are
+            # after every 0.2.0 build and before the release's, and rc10's
+            # are after rc9's.
+            ("edge", "1.0.0rc6.r0.g8880c58c5", "0.2.0.r1157.g8880c58c5"),
+            ("edge", "1.0.0rc6.r5.gabcdef012", "1.0.0rc6.r0.g8880c58c5"),
+            ("edge", "1.0.0rc10.r0.gabcdef012", "1.0.0rc9.r7.g38b376c64"),
+            ("edge", "1.0.0.r0.gabcdef012", "1.0.0rc10.r4.g38b376c64"),
+            ("edge", "1.0.1rc1.r0.gabcdef012", "1.0.0.r9.g38b376c64"),
         ):
             self.publish(channel, f"origaitv-{live}-x86_64", b"newer")
             before = self.keys()
@@ -698,6 +713,25 @@ class IsoPublish(unittest.TestCase):
             self.assertEqual(self.keys(), before)
             for key in before:
                 (self.bucket / key).unlink()
+
+    def test_edge_moves_through_every_version_pacman_takes_in_turn(self):
+        # The order a box's own vercmp is asked about (edge-order.txt), less
+        # stable's bare releases, which are never edge's.
+        listed = [line.strip() for line in (ROOT / "test/origaitv/edge-order.txt").read_text().splitlines()]
+        steps = [line for line in listed if line and not line.startswith("#") and ".r" in line]
+        self.assertEqual(steps[:2], ["0.2.0.r1157.g8880c58c5", "1.0.0rc6.r0.g8880c58c5"])
+        self.assertGreaterEqual(len(steps), 7)
+        for version in steps:
+            self.publish("edge", f"origaitv-{version}-x86_64", version.encode())
+            self.assertEqual(self.pointer("edge")["version"], version)
+        # And from the newest, none of the ones before it goes back out.
+        newest = steps[-1]
+        for version in steps[:-1]:
+            iso, names = self.named("edge", f"origaitv-{version}-x86_64", b"older")
+            result = self.run_publish("upload", "edge", str(iso), str(names))
+            self.assertNotEqual(result.returncode, 0, f"{version} over {newest}")
+            self.assertIn(f"is {newest}, and {version} is older", result.stderr)
+            self.assertEqual(self.pointer("edge")["version"], newest)
 
     def test_going_back_is_a_run_that_says_so(self):
         self.publish("stable", "origaitv-1.0.1-x86_64", b"a bad one")
@@ -718,6 +752,9 @@ class IsoPublish(unittest.TestCase):
             ("stable", "0.2.0", "1.0.0"),
             ("rc", "1.0.0-rc1", "1.0.0-rc2"),
             ("edge", "0.2.0.r532.g38b376c64", "0.2.0.r540.gabcdef012"),
+            ("edge", "0.2.0.r1157.g8880c58c5", "1.0.0rc6.r0.g8880c58c5"),
+            ("edge", "1.0.0rc9.r3.g38b376c64", "1.0.0rc10.r0.gabcdef012"),
+            ("edge", "1.0.0rc10.r1.gabcdef012", "1.0.0.r0.g38b376c64"),
             # An edge build named by its day has no version to compare.
             ("edge", "edge-2026.11.10-abc1234", "0.2.0.r1.gabcdef012"),
             ("edge", "0.2.0.r540.gabcdef012", "edge-2026.11.10-abc1234"),

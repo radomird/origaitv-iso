@@ -1,0 +1,18 @@
+# The versions edge's origaitv package has had and will have, oldest first,
+# with stable's releases where they fall. Edge counts from the last release
+# or candidate: 1.0.0rc6.r5.g<commit> is five commits after 1.0.0-rc6.
+#
+# A box only ever takes a newer package, so pacman has to put these in this
+# order. The installed-box check asks the box's own vercmp about every pair
+# (test/origaitv/image/origaitv-installed-test.sh), and the edge channel's
+# forward-only rule is held to the same order
+# (test/origaitv/unit/test_iso_publish.py).
+0.2.0.r1157.g8880c58c5
+1.0.0rc6.r0.g8880c58c5
+1.0.0rc6.r5.gabcdef012
+1.0.0rc7.r0.gabcdef012
+1.0.0rc10.r0.gabcdef012
+1.0.0
+1.0.0.r1.gabcdef012
+1.0.1rc1.r0.gabcdef012
+1.0.1
