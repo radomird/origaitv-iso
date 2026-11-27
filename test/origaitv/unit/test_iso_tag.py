@@ -172,6 +172,27 @@ class WhatTheIsoCarries(unittest.TestCase):
         self.fetched("0.2.0.r541.g" + self.second[:7])
         self.passes("origaitv-v1.0.0-rc2")
 
+    def test_a_candidates_iso_carries_a_build_named_after_the_candidate_before(self):
+        # Edge counts from the last release or candidate, and a candidate's
+        # tag goes on a package that's already built. So rc7's ISO carries a
+        # build named after rc6, and rc1's one named after the release before.
+        self.git("tag", "origaitv-v1.0.0-rc7", self.first)
+        self.fetched("1.0.0rc6.r12.g" + self.first[:9])
+        said = self.passes("origaitv-v1.0.0-rc7")
+        self.assertIn("1.0.0rc6.r12.g" + self.first[:9], said)
+        self.git("tag", "origaitv-v1.0.1-rc1", self.second)
+        self.fetched("1.0.0.r3.g" + self.second[:9])
+        self.passes("origaitv-v1.0.1-rc1")
+        self.fetched("1.0.0rc10.r0.g" + self.second[:7])
+        self.passes("origaitv-v1.0.1-rc1")
+        # Still the commit that was tagged, and nothing else.
+        self.fetched("1.0.0rc6.r13.g" + self.second[:9])
+        self.refused("wouldn't be what was tagged", "origaitv-v1.0.0-rc7")
+        # A name that only looks like a candidate's build isn't edge's.
+        for version in ("1.0.0-rc6", "1.0.0rc6", "1.0.0rc06.r1.g" + self.first[:9], "1.0.0rc.r1.g" + self.first[:9], "1.0.0rc0.r1.g" + self.first[:9]):
+            self.fetched(version)
+            self.refused("doesn't say which origaitv-os commit", "origaitv-v1.0.0-rc7")
+
     def test_a_candidate_origaitv_os_hasnt_tagged_is_refused(self):
         self.fetched("0.2.0.r540.g" + self.first[:9])
         self.refused("origaitv-os has no origaitv-v1.0.0-rc1 tag", "origaitv-v1.0.0-rc1")

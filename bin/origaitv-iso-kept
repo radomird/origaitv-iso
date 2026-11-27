@@ -109,8 +109,8 @@ case $channel in
       [[ $has =~ ^(ahead|identical)$ ]] ||
         stop "Run $run was started by hand on $commit, from before a night started by hand stopped keeping an ISO when an origaitv-iso ref is typed in. So it isn't known what its checks were, and its ISO isn't published."
     fi
-    [[ $name =~ ^origaitv-(edge-[0-9.]+-[0-9a-f]{7}|[0-9]+\.[0-9]+\.[0-9]+\.r[0-9]+\.g[0-9a-f]+)-x86_64$ ]] ||
-      stop "$name isn't an edge ISO's name, such as origaitv-0.2.0.r422.g155320d30-x86_64."
+    [[ $name =~ ^origaitv-(edge-[0-9.]+-[0-9a-f]{7}|[0-9]+\.[0-9]+\.[0-9]+(rc[1-9][0-9]*)?\.r[0-9]+\.g[0-9a-f]+)-x86_64$ ]] ||
+      stop "$name isn't an edge ISO's name, such as origaitv-1.0.0rc6.r12.g155320d30-x86_64 or origaitv-1.0.0.r3.g155320d30-x86_64."
     # The leg that made the ISO has to have passed, on the run's latest
     # try. A night whose stable leg failed can still have a good edge ISO.
     if [[ $conclusion != "success" ]]; then

@@ -18,7 +18,7 @@
 #
 #   stable  1.0.0
 #   rc      1.0.0-rc1
-#   edge    0.2.0.r422.g155320d30, the version of the origaitv package on it,
+#   edge    1.0.0rc6.r12.g155320d30, the version of the origaitv package on it,
 #           which is what "origaitv version" prints on a box installed from
 #           it. A build that's only named by its day and commit keeps that
 #           name: edge-2026.11.10-abc1234.
@@ -132,7 +132,7 @@ channel_versions() {
   case $1 in
     stable) echo '[0-9]+\.[0-9]+\.[0-9]+' ;;
     rc) echo '[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+' ;;
-    edge) echo '([0-9]+\.[0-9]+\.[0-9]+\.r[0-9]+\.g[0-9a-f]{7,40}|edge-([0-9]{4}\.[0-9]{2}\.[0-9]{2}-)?[0-9a-f]{7})' ;;
+    edge) echo '([0-9]+\.[0-9]+\.[0-9]+(rc[1-9][0-9]*)?\.r[0-9]+\.g[0-9a-f]{7,40}|edge-([0-9]{4}\.[0-9]{2}\.[0-9]{2}-)?[0-9a-f]{7})' ;;
   esac
 }
 
@@ -244,13 +244,20 @@ put() {
   (( try == 1 )) || echo "$key went up on try $try." >&2
 }
 
-# Is version $1 older than $2? Versions sort the way sort -V sorts them:
+# Is version $1 older than $2? Versions sort the way pacman sorts them:
 # 0.2.0 before 1.0.0, 1.0.0-rc2 before 1.0.0-rc10, 0.2.0.r532.g... before
-# 0.2.0.r540.g... and that before 1.0.0.r0.g... An edge build named by its
-# day and commit has no version to compare, so it's never called older.
+# 1.0.0rc6.r0.g..., that before 1.0.0rc10.r0.g... and that before
+# 1.0.0.r0.g... An edge build named by its day and commit has no version to
+# compare, so it's never called older.
+#
+# sort -V agrees with pacman on all of those but an edge build that counts
+# from a candidate: it would put 1.0.0rc6.r0.g... after 1.0.0.r0.g... It
+# does put a ~ before everything, so those sort with one before their rc.
+# test/origaitv/edge-order.txt has the order, and the installed-box check
+# asks a box's own vercmp about every pair of it.
 older() {
   [[ $1 != "$2" && $1 != edge-* && $2 != edge-* ]] || return 1
-  [[ $(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n 1) == "$1" ]]
+  [[ $(printf '%s\n%s\n' "$1" "$2" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+)(rc[0-9]+\.r)/\1~\2/' | sort -V | head -n 1 | tr -d '~') == "$1" ]]
 }
 
 # Reads one ISO's checksum file into the caller's $hash and $file, or stops.
@@ -275,7 +282,7 @@ names() {
   version=${file#origaitv-}
   version=${version%-x86_64.iso}
   if ! channel_iso "$channel" "$file"; then
-    echo "origaitv-iso-publish: $file isn't a $channel ISO. A stable version looks like 1.0.0, an rc's like 1.0.0-rc1 and edge's like 0.2.0.r422.g155320d30." >&2
+    echo "origaitv-iso-publish: $file isn't a $channel ISO. A stable version looks like 1.0.0, an rc's like 1.0.0-rc1 and edge's like 1.0.0rc6.r12.g155320d30 or 1.0.0.r3.g155320d30." >&2
     exit 1
   fi
   mkdir -p "$dir"

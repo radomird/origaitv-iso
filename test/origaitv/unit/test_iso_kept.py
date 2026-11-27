@@ -196,6 +196,14 @@ class IsoKept(unittest.TestCase):
         self.passes("edge", "origaitv-os", 9, "origaitv-0.2.0.r422.g155320d30-x86_64")
         self.a_night(kept=["origaitv-edge-2026.11.10-abc1234-x86_64"])
         self.passes("edge", "origaitv-os", 9, "origaitv-edge-2026.11.10-abc1234-x86_64")
+        # Edge counts from the last release or candidate.
+        for name in ("origaitv-1.0.0rc6.r12.g155320d30-x86_64", "origaitv-1.0.0rc10.r0.g155320d30-x86_64", "origaitv-1.0.0.r3.g155320d30-x86_64"):
+            self.a_night(kept=[name])
+            self.passes("edge", "origaitv-os", 9, name)
+        # A release's or a candidate's own name is never a night's ISO.
+        for name in ("origaitv-1.0.0-x86_64", "origaitv-1.0.0-rc6-x86_64", "origaitv-1.0.0rc6-x86_64", "origaitv-1.0.0rc06.r1.g155320d30-x86_64"):
+            self.a_night(kept=[name])
+            self.refused("isn't an edge ISO's name", "edge", "origaitv-os", 9, name)
 
     RULE = "98f46c5de20a1c42b19336d6d881e080b6ecec60"
 
